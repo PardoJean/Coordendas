@@ -76,6 +76,21 @@ def limpiar_numero(texto):
         return ""
     return re.sub(r'[\s,]', '', texto)
 
+def truncar_decimales(valor_str, decimales=2):
+    """Trunca un número a N decimales sin redondear."""
+    if not valor_str:
+        return ""
+    try:
+        # Limpiar el string
+        valor_str = valor_str.replace(',', '.')
+        valor = float(valor_str)
+        # Truncar sin redondear
+        factor = 10 ** decimales
+        valor_truncado = int(valor * factor) / factor
+        return str(valor_truncado)
+    except:
+        return valor_str
+
 def extraer_coordenadas(texto):
     """Extrae X, Y, COTA, ABS del texto OCR con mejor precisión."""
     resultado = {"X": "", "Y": "", "COTA": "", "ABS": ""}
@@ -119,17 +134,22 @@ def extraer_coordenadas(texto):
             resultado["COTA"] = limpiar_numero(cota_match.group(1))
             break
 
-    # Buscar ABS (Estación) - K0+valor o similar
+    # Buscar ABS (Estación) - Est:K-0+valor o K0+valor
     abs_patterns = [
-        r'K0\+(-?\d+[\.,]?\d*)',
-        r'(?:ABS|STATION|STA|EST)\s*[:\.]?\s*(-?\d+[\.,]?\d*)',
-        r'(?:EST)\s*[:\.]?\s*(-?\d+[\.,]?\d*)',
+        r'EST\s*[:\.]?\s*K\s*-?\s*0\s*\+\s*(-?\d+[\.,]?\d*)',  # Est:K-0+218.161 o Est:K0+
+        r'K\s*-?\s*0\s*\+\s*(-?\d+[\.,]?\d*)',  # K-0+valor o K0+valor
+        r'(?:ABS|STATION|STA)\s*[:\.]?\s*(-?\d+[\.,]?\d*)',
     ]
     for pattern in abs_patterns:
         abs_match = re.search(pattern, texto_upper)
         if abs_match:
             resultado["ABS"] = limpiar_numero(abs_match.group(1))
             break
+
+    # Aplicar truncado a 2 decimales sin redondear
+    for key in resultado:
+        if resultado[key]:
+            resultado[key] = truncar_decimales(resultado[key], decimales=2)
 
     return resultado
 
