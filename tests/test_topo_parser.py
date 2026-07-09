@@ -63,6 +63,25 @@ def main():
         "ABS": "-154.89",
     })
 
+    # Simula la salida de pytesseract: cada FILA visual queda en una sola
+    # línea de texto, mezclando ambas columnas (izq. y der. de la pantalla).
+    TOKENS_TESSERACT_STYLE = [
+        "Líneas > eje 905          1.250",
+        "Nombre  -218.161   Código > DCP 1",
+        "Dist:1181.302m  Est:K-0+218.161",
+        "Cruz: -1181.302m   Relleno: 118.285m",
+        "N   9603591.641   Elevación   786.715",
+        "E   780720.633   Distancia 2D   0.035",
+        "Distancia base   685.889   Elev.   0.012",
+    ]
+    todo_ok &= _check("Estilo pytesseract (líneas mezcladas)", TOKENS_TESSERACT_STYLE, {
+        "Ensayo": "DCP 1",
+        "X": "780720.63",
+        "Y": "9603591.64",
+        "COTA": "786.71",
+        "ABS": "-218.16",
+    })
+
     # ---- Casos unitarios de reglas ----
     print("\n== Reglas unitarias ==")
     casos = [

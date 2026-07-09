@@ -3,8 +3,8 @@ Procesador Topográfico - App web (Streamlit).
 Copia una captura de topografía en WhatsApp, pégala y obtén X, Y, COTA y ABS.
 """
 import io
+import shutil
 
-import numpy as np
 import pandas as pd
 import streamlit as st
 from PIL import Image
@@ -40,32 +40,36 @@ st.caption("Copia la captura en WhatsApp → pégala aquí → obtén las coorde
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# OCR (se carga una sola vez)
+# OCR (Tesseract vía pytesseract — ligero, sin PyTorch)
 # ────────────────────────────────────────────────────────────────────────────
-@st.cache_resource(show_spinner="Cargando el motor OCR (solo la primera vez)…")
-def cargar_ocr():
+@st.cache_resource(show_spinner=False)
+def verificar_tesseract():
+    import pytesseract
+
+    ruta = shutil.which("tesseract")
+    if ruta:
+        pytesseract.pytesseract.tesseract_cmd = ruta
     try:
-        import easyocr
-
-        return easyocr.Reader(["es", "en"], gpu=False), None
+        pytesseract.get_tesseract_version()
+        return True, None
     except Exception as e:  # noqa: BLE001
-        return None, str(e)
+        return False, str(e)
 
 
-ocr, ocr_error = cargar_ocr()
+ocr_disponible, ocr_error = verificar_tesseract()
 
-if ocr is None:
-    st.error(f"No se pudo iniciar el OCR: {ocr_error}")
-    st.info("Recarga la página en 1–2 minutos. La primera carga descarga el modelo.")
+if not ocr_disponible:
+    st.error(f"No se pudo iniciar Tesseract OCR: {ocr_error}")
+    st.info("Recarga la página en 1–2 minutos mientras Streamlit Cloud instala Tesseract.")
     st.stop()
 
 
 def leer_imagen(img_pil: Image.Image) -> dict:
     """Corre OCR sobre una imagen PIL y devuelve el registro parseado."""
-    img = np.array(img_pil.convert("RGB"))
-    detecciones = ocr.readtext(img)
-    tokens = [d[1] for d in detecciones] if detecciones else []
-    return parsear(tokens)
+    import pytesseract
+
+    texto = pytesseract.image_to_string(img_pil.convert("RGB"), lang="spa+eng")
+    return parsear(texto)
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -148,7 +152,7 @@ st.session_state.registros = df_editado.to_dict("records")
 # Métricas
 m1, m2 = st.columns(2)
 m1.metric("Registros", len(df_editado))
-vacios = int(df_editado.replace("", np.nan).isna().sum().sum())
+vacios = int((df_editado == "").sum().sum())
 m2.metric("Campos vacíos", vacios)
 
 # Descargas

@@ -24,6 +24,9 @@ Todos los números se truncan a **2 decimales sin redondear**.
 
 ## Ejecutar localmente
 
+Requiere el binario de **Tesseract OCR** instalado en el sistema
+(en Streamlit Cloud se instala solo, vía `packages.txt`).
+
 ```bash
 pip install -r requirements.txt
 streamlit run streamlit_app.py
