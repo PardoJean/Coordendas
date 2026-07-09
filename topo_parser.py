@@ -16,6 +16,17 @@ import math
 
 TIPOS = ["POZO", "VDC", "DCP", "TIS", "DCA"]
 
+# Patrones tolerantes a errores típicos de OCR para cada tipo de ensayo
+# (ej. "0" en vez de "O", o palabras que Tesseract confunde por completo).
+# Basado en los errores observados en la app de escritorio original.
+_PATRONES_TIPO = {
+    "POZO": r"P[O0][ZS2][O0]|FES[O0]?|PES[O0]?|POZ|POS\b",
+    "VDC": r"VDC|V[O0]C[D0]?|VUC|VBC|UDC|FER|PYR[O0]|T[O0]E",
+    "DCP": r"DCP|D[O0]P",
+    "TIS": r"TIS",
+    "DCA": r"DCA",
+}
+
 
 def truncar_2(valor):
     """Trunca a 2 decimales sin redondear. Devuelve '' si no es número."""
@@ -61,20 +72,45 @@ def procesar_abs(crudo):
     return truncar_2(n) if n else ""
 
 
-def extraer_ensayo(texto):
-    """Extrae 'TIPO N' desde el campo Código (o desde el texto si no aparece 'Código')."""
-    up = texto.upper()
-    patron_tipo = "|".join(TIPOS)
-    # 1) Preferir lo que está junto a "Código"
-    m = re.search(rf"C[ÓO]DIGO\D{{0,15}}({patron_tipo})\s*0*(\d+)?", up)
-    # 2) Si no, cualquier tipo conocido del texto
+def _region_codigo(up):
+    """Recorta ~25 caracteres después de 'Código' (tolerante a OCR ruidoso)."""
+    m = re.search(r"C[ÓO0][D0]IG[O0]", up)
     if not m:
-        m = re.search(rf"\b({patron_tipo})\b\s*0*(\d+)?", up)
-    if m:
-        tipo = m.group(1)
-        num = m.group(2)
-        return f"{tipo} {int(num)}" if num else tipo
-    return "SIN CLASIFICAR"
+        return None
+    return up[m.end():m.end() + 25]
+
+
+def extraer_ensayo(texto):
+    """Extrae 'TIPO N' desde el campo Código, tolerando errores comunes de OCR
+    (ej. 'P0Z0', 'POZ0', 'Voc' -> se normalizan a POZO/VDC/etc.)."""
+    up = texto.upper()
+
+    def _buscar_en(region):
+        mejor = None  # (posición, tipo, texto_coincidente)
+        for tipo, patron in _PATRONES_TIPO.items():
+            m = re.search(patron, region)
+            if m and (mejor is None or m.start() < mejor[0]):
+                mejor = (m.start(), tipo, m)
+        return mejor
+
+    # 1) Preferir la región justo después de "Código"
+    region = _region_codigo(up)
+    resultado = _buscar_en(region) if region else None
+    texto_busqueda = region
+
+    # 2) Si no aparece "Código" o no hay match ahí, buscar en todo el texto
+    if not resultado:
+        resultado = _buscar_en(up)
+        texto_busqueda = up
+
+    if not resultado:
+        return "SIN CLASIFICAR"
+
+    _, tipo, m = resultado
+    # Número justo después de la coincidencia (ignorando ceros a la izquierda)
+    resto = texto_busqueda[m.end():m.end() + 10]
+    mnum = re.match(r"\s*0*(\d{1,3})", resto)
+    return f"{tipo} {int(mnum.group(1))}" if mnum else tipo
 
 
 def extraer_coordenadas(tokens):

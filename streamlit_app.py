@@ -64,12 +64,12 @@ if not ocr_disponible:
     st.stop()
 
 
-def leer_imagen(img_pil: Image.Image) -> dict:
-    """Corre OCR sobre una imagen PIL y devuelve el registro parseado."""
+def leer_imagen(img_pil: Image.Image) -> tuple[dict, str]:
+    """Corre OCR sobre una imagen PIL. Devuelve (registro, texto_ocr_crudo)."""
     import pytesseract
 
     texto = pytesseract.image_to_string(img_pil.convert("RGB"), lang="spa+eng")
-    return parsear(texto)
+    return parsear(texto), texto
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -77,6 +77,8 @@ def leer_imagen(img_pil: Image.Image) -> dict:
 # ────────────────────────────────────────────────────────────────────────────
 if "registros" not in st.session_state:
     st.session_state.registros = []
+if "ultimo_ocr_crudo" not in st.session_state:
+    st.session_state.ultimo_ocr_crudo = ""
 
 
 def agregar_registro(reg: dict):
@@ -107,8 +109,9 @@ with col_pegar:
 
     if pegado is not None:
         with st.spinner("Leyendo imagen…"):
-            reg = leer_imagen(pegado)
+            reg, texto_crudo = leer_imagen(pegado)
             agregar_registro(reg)
+            st.session_state.ultimo_ocr_crudo = texto_crudo
         st.success(f"Añadido: {reg.get('Ensayo', '—')}")
 
 with col_subir:
@@ -122,9 +125,14 @@ with col_subir:
     if archivos and st.button("Procesar imágenes subidas", use_container_width=True):
         with st.spinner("Leyendo imágenes…"):
             for archivo in archivos:
-                reg = leer_imagen(Image.open(archivo))
+                reg, texto_crudo = leer_imagen(Image.open(archivo))
                 agregar_registro(reg)
+                st.session_state.ultimo_ocr_crudo = texto_crudo
         st.success(f"Procesadas {len(archivos)} imagen(es).")
+
+if st.session_state.ultimo_ocr_crudo:
+    with st.expander("🔍 Ver texto crudo del último OCR (para depurar un dato mal leído)"):
+        st.text(st.session_state.ultimo_ocr_crudo)
 
 
 # ────────────────────────────────────────────────────────────────────────────

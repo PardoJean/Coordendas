@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-from topo_parser import parsear, truncar_2, procesar_abs
+from topo_parser import parsear, truncar_2, procesar_abs, extraer_ensayo
 
 # ---- Tokens tal como EasyOCR los devuelve (celda por celda) ----
 
@@ -81,6 +81,42 @@ def main():
         "COTA": "786.71",
         "ABS": "-218.16",
     })
+
+    # Captura 3: Código POZO 1 (el caso real que falló - Ensayo salía "SIN CLASIFICAR")
+    TOKENS_3 = [
+        "Líneas", "EJE 905", "1.250",
+        "Nombre", "0.000", "Código", "POZO 1",
+        "Dist:960.203m", "Est:K-0+155.907",
+        "Cruz: -947.461m", "Relleno: 83.001m",
+        "En: -155.907m", "Elev.: 821.999m",
+        "N", "9603365.959", "Distancia 2D", "0.005",
+        "E", "780807.953", "Elevación", "821.999",
+        "Distancia base", "645.261",
+    ]
+    todo_ok &= _check("Captura 3 (POZO 1)", TOKENS_3, {
+        "Ensayo": "POZO 1",
+        "X": "780807.95",
+        "Y": "9603365.95",
+        "COTA": "821.99",
+        "ABS": "-155.90",
+    })
+
+    # ---- Ruido de OCR típico en el campo "Código" ----
+    print("\n== Ensayo con ruido de OCR ==")
+    casos_ensayo = [
+        ("Código > P0Z0 1", "POZO 1"),       # 0 en vez de O
+        ("Código > POZ0 1", "POZO 1"),
+        ("Código: Voc 4", "VDC 4"),          # VDC mal leído
+        ("C6digo > POZO1", "POZO 1"),        # "Código" y número pegados sin espacio
+        ("Codigo > DOP 3", "DCP 3"),         # DCP mal leído
+        ("sin ningun codigo reconocible aqui", "SIN CLASIFICAR"),
+    ]
+    for texto_ocr, esperado in casos_ensayo:
+        got = extraer_ensayo(texto_ocr)
+        estado = "OK " if got == esperado else "FALLA"
+        if got != esperado:
+            todo_ok = False
+        print(f"  [{estado}] {texto_ocr!r}: esperado={esperado!r} obtenido={got!r}")
 
     # ---- Casos unitarios de reglas ----
     print("\n== Reglas unitarias ==")
