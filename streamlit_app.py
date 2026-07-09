@@ -92,40 +92,44 @@ def truncar_decimales(valor_str, decimales=2):
         return valor_str
 
 def extraer_coordenadas(texto):
-    """Extrae X, Y, COTA, ABS del texto OCR con mejor precisión."""
+    """Extrae X, Y, COTA, ABS del texto OCR con precisión."""
     resultado = {"X": "", "Y": "", "COTA": "", "ABS": ""}
 
     # Convertir a mayúsculas para búsqueda
     texto_upper = texto.upper()
     lineas = texto.split('\n')
 
-    # Buscar X (Este) - números de 6-7 dígitos
-    x_patterns = [
-        r'E(?:STE)?\s*[:\.]?\s*(-?\d+[\.,]?\d*)',  # E: 780720.633
-        r'ESTE\s*[:\.]?\s*(-?\d+[\.,]?\d*)',
-        r'(\d{6,7}[\.,]\d+)',  # Números grandes tipo coordenadas UTM
-    ]
-    for pattern in x_patterns:
-        x_match = re.search(pattern, texto_upper)
+    # Buscar X (donde dice "E") - busca línea que empieza con E seguida de números
+    for linea in lineas:
+        linea_limpia = linea.strip()
+        x_match = re.match(r'^E\s+(-?\d+[\.,]?\d*)', linea_limpia)
         if x_match:
             resultado["X"] = limpiar_numero(x_match.group(1))
             break
 
-    # Buscar Y (Norte) - números que comienzan con 9 (9603591.641)
-    y_patterns = [
-        r'N(?:ORTE)?\s*[:\.]?\s*(-?\d+[\.,]?\d*)',  # N: 9603591.641
-        r'NORTE\s*[:\.]?\s*(-?\d+[\.,]?\d*)',
-        r'(9\d{6,7}[\.,]\d+)',  # Números que comienzan con 9 (típico de coordenadas UTM Norte)
-    ]
-    for pattern in y_patterns:
-        y_match = re.search(pattern, texto_upper)
+    # Si no encuentra con E al inicio, buscar patrón más flexible
+    if not resultado["X"]:
+        x_match = re.search(r'\bE\s+(-?\d{6,7}[\.,]?\d*)', texto_upper)
+        if x_match:
+            resultado["X"] = limpiar_numero(x_match.group(1))
+
+    # Buscar Y (donde dice "N") - busca línea que empieza con N seguida de números
+    for linea in lineas:
+        linea_limpia = linea.strip()
+        y_match = re.match(r'^N\s+(-?\d+[\.,]?\d*)', linea_limpia)
         if y_match:
             resultado["Y"] = limpiar_numero(y_match.group(1))
             break
 
+    # Si no encuentra con N al inicio, buscar patrón más flexible
+    if not resultado["Y"]:
+        y_match = re.search(r'\bN\s+(-?\d{6,7}[\.,]?\d*)', texto_upper)
+        if y_match:
+            resultado["Y"] = limpiar_numero(y_match.group(1))
+
     # Buscar COTA/ELEVACIÓN - número con signo negativo o positivo
     cota_patterns = [
-        r'(?:COTA|ELEV|ELEVACIÓN|ELEVATION|ELE[Vv]\.?|ELEY)\s*[:\.]?\s*(-?\d+[\.,]?\d*)',
+        r'(?:COTA|ELEV|ELEVACIÓN|ELEVATION|ELE[Vv]\.?|ELEY|ELEV\.)\s*[:\.]?\s*(-?\d+[\.,]?\d*)',
         r'CRUZ\s*[:\.]?\s*(-?\d+[\.,]?\d*)',  # También busca en "Cruz"
     ]
     for pattern in cota_patterns:
@@ -136,7 +140,7 @@ def extraer_coordenadas(texto):
 
     # Buscar ABS (Estación) - Est:K-0+valor o K0+valor
     abs_patterns = [
-        r'EST\s*[:\.]?\s*K\s*-?\s*0\s*\+\s*(-?\d+[\.,]?\d*)',  # Est:K-0+218.161 o Est:K0+
+        r'EST\s*[:\.]?\s*K\s*-?\s*0\s*\+\s*(-?\d+[\.,]?\d*)',  # Est:K-0+218.161
         r'K\s*-?\s*0\s*\+\s*(-?\d+[\.,]?\d*)',  # K-0+valor o K0+valor
         r'(?:ABS|STATION|STA)\s*[:\.]?\s*(-?\d+[\.,]?\d*)',
     ]
