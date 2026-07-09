@@ -1,0 +1,86 @@
+"""Tests del parser topográfico contra ejemplos reales (capturas de WhatsApp)."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
+
+from topo_parser import parsear, truncar_2, procesar_abs
+
+# ---- Tokens tal como EasyOCR los devuelve (celda por celda) ----
+
+# Captura 1: Código DCP 1
+TOKENS_1 = [
+    "Líneas", "eje 905", "1.250",
+    "Nombre", "-218.161", "Código", "DCP 1",
+    "Dist:1181.302m", "Est:K-0+218.161",
+    "Cruz: -1181.302m", "Relleno: 118.285m", "Elev.: 786.715m",
+    "N", "9603591.641", "Elevación", "786.715",
+    "E", "780720.633", "Distancia 2D", "0.035",
+    "Distancia base", "685.889", "Elev.", "0.012",
+]
+
+# Captura 2: Código VDC 4
+TOKENS_2 = [
+    "Líneas", "EJE 905", "1.250",
+    "Nombre", "0.000", "Código", "VDC 4",
+    "Dist:889.772m", "Est:K-0+154.895",
+    "Cruz: -876.186m", "Relleno: 79.613m", "Elev.: 825.387m",
+    "N", "9603295.217", "Distancia 2D", "0.010",
+    "E", "780816.712", "Elevación", "825.387",
+    "Distancia base", "667.181",
+]
+
+
+def _check(nombre, tokens, esperado):
+    r = parsear(tokens)
+    ok = True
+    print(f"\n== {nombre} ==")
+    for k, v in esperado.items():
+        got = r.get(k)
+        estado = "OK " if got == v else "FALLA"
+        if got != v:
+            ok = False
+        print(f"  [{estado}] {k}: esperado={v!r}  obtenido={got!r}")
+    return ok
+
+
+def main():
+    todo_ok = True
+
+    todo_ok &= _check("Captura 1 (DCP 1)", TOKENS_1, {
+        "Ensayo": "DCP 1",
+        "X": "780720.63",
+        "Y": "9603591.64",
+        "COTA": "786.71",
+        "ABS": "-218.16",
+    })
+
+    todo_ok &= _check("Captura 2 (VDC 4)", TOKENS_2, {
+        "Ensayo": "VDC 4",
+        "X": "780816.71",
+        "Y": "9603295.21",
+        "COTA": "825.38",
+        "ABS": "-154.89",
+    })
+
+    # ---- Casos unitarios de reglas ----
+    print("\n== Reglas unitarias ==")
+    casos = [
+        ("truncar sin redondear 786.719", truncar_2("786.719"), "786.71"),
+        ("truncar negativo -218.169", truncar_2("-218.169"), "-218.16"),
+        ("abs K-0+218.161", procesar_abs("K-0+218.161"), "-218.16"),
+        ("abs K0+154.895 (sin primer signo)", procesar_abs("K0+154.895"), "154.89"),
+        ("abs con espacios K - 0 + 99.999", procesar_abs("K - 0 + 99.999"), "-99.99"),
+    ]
+    for nombre, got, esp in casos:
+        estado = "OK " if got == esp else "FALLA"
+        if got != esp:
+            todo_ok = False
+        print(f"  [{estado}] {nombre}: esperado={esp!r} obtenido={got!r}")
+
+    print("\n" + ("TODOS LOS TESTS PASARON" if todo_ok else "HAY FALLAS"))
+    return 0 if todo_ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
