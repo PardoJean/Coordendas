@@ -286,72 +286,72 @@ with tab2:
 
     # Procesar imágenes
     if procesar_btn and imagenes_subidas:
-    if not ocr_disponible:
-        st.error(f"❌ OCR no está disponible. Razón: {ocr_error}\n\nIntenta recargando la página en 1-2 minutos.")
-    else:
-        with st.spinner("⏳ Procesando imágenes con OCR..."):
-            try:
-                datos_procesados = []
-                errores = []
+        if not ocr_disponible:
+            st.error(f"❌ OCR no está disponible. Razón: {ocr_error}\n\nIntenta recargando la página en 1-2 minutos.")
+        else:
+            with st.spinner("⏳ Procesando imágenes con OCR..."):
+                try:
+                    datos_procesados = []
+                    errores = []
 
-                for idx, imagen_archivo in enumerate(imagenes_subidas, 1):
-                    try:
-                        # Leer imagen
-                        pil_img = Image.open(imagen_archivo)
-                        img_array = np.array(pil_img)
+                    for idx, imagen_archivo in enumerate(imagenes_subidas, 1):
+                        try:
+                            # Leer imagen
+                            pil_img = Image.open(imagen_archivo)
+                            img_array = np.array(pil_img)
 
-                        # Procesar OCR con EasyOCR
-                        resultados = ocr.readtext(img_array)
+                            # Procesar OCR con EasyOCR
+                            resultados = ocr.readtext(img_array)
 
-                        # Extraer texto de resultados de EasyOCR
-                        if resultados:
-                            texto_ocr = "\n".join([resultado[1] for resultado in resultados])
-                        else:
-                            texto_ocr = ""
+                            # Extraer texto de resultados de EasyOCR
+                            if resultados:
+                                texto_ocr = "\n".join([resultado[1] for resultado in resultados])
+                            else:
+                                texto_ocr = ""
 
-                        if not texto_ocr:
-                            errores.append(f"No se extrajo texto de {imagen_archivo.name}")
-                            continue
+                            if not texto_ocr:
+                                errores.append(f"No se extrajo texto de {imagen_archivo.name}")
+                                continue
 
-                        # Parsear datos
-                        ensayo = extraer_ensayo_completo(texto_ocr)
-                        coords = extraer_coordenadas(texto_ocr)
+                            # Parsear datos
+                            ensayo = extraer_ensayo_completo(texto_ocr)
+                            coords = extraer_coordenadas(texto_ocr)
 
-                        registro = {
-                            "Ensayo": ensayo,
-                            "X": coords["X"],
-                            "Y": coords["Y"],
-                            "COTA": coords["COTA"],
-                            "ABS": coords["ABS"],
-                            "Imagen": imagen_archivo.name
-                        }
+                            registro = {
+                                "Ensayo": ensayo,
+                                "X": coords["X"],
+                                "Y": coords["Y"],
+                                "COTA": coords["COTA"],
+                                "ABS": coords["ABS"],
+                                "Imagen": imagen_archivo.name
+                            }
 
-                        datos_procesados.append(registro)
+                            datos_procesados.append(registro)
 
-                    except Exception as e:
-                        errores.append(f"Error en {imagen_archivo.name}: {str(e)}")
+                        except Exception as e:
+                            errores.append(f"Error en {imagen_archivo.name}: {str(e)}")
 
-                # Ordenar registros
-                if datos_procesados:
-                    # Convertir a DataFrame para ordenar
-                    df_temp = pd.DataFrame(datos_procesados)
-                    df_temp = df_temp.sort_values("Ensayo")
-                    datos_procesados = df_temp.to_dict('records')
+                    # Ordenar registros
+                    if datos_procesados:
+                        # Convertir a DataFrame para ordenar
+                        df_temp = pd.DataFrame(datos_procesados)
+                        df_temp = df_temp.sort_values("Ensayo")
+                        datos_procesados = df_temp.to_dict('records')
 
-                    st.session_state.datos_procesados = datos_procesados
-                    st.success(f"✅ Se procesaron {len(datos_procesados)} imágenes correctamente")
+                        st.session_state.datos_procesados = datos_procesados
+                        st.success(f"✅ Se procesaron {len(datos_procesados)} imágenes correctamente")
 
-                    if errores:
-                        with st.warning(f"⚠️ {len(errores)} advertencia(s)"):
-                            for error in errores:
-                                st.text(error)
-                else:
-                    st.error("❌ No se pudo procesar ninguna imagen")
-                    for error in errores:
-                        st.error(error)
+                        if errores:
+                            with st.warning(f"⚠️ {len(errores)} advertencia(s)"):
+                                for error in errores:
+                                    st.text(error)
+                    else:
+                        st.error("❌ No se pudo procesar ninguna imagen")
+                        for error in errores:
+                            st.error(error)
 
-            except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
 
 # Mostrar y editar datos
 if st.session_state.datos_procesados:
