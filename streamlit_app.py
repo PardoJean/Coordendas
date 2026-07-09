@@ -9,12 +9,25 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
-from src import parser_topografia
-from src import validators
-from src import sorter
-from src.config import COLUMNAS
+# Import lazy para evitar errores de cv2 en Streamlit Cloud
+def cargar_modulos():
+    """Carga módulos del proyecto (lazy loading)."""
+    try:
+        from src import parser_topografia
+        from src import validators
+        from src import sorter
+        from src.config import COLUMNAS
+        return parser_topografia, validators, sorter, COLUMNAS
+    except Exception as e:
+        st.error(f"Error cargando módulos: {str(e)}")
+        return None, None, None, None
+
+parser_topografia, validators, sorter, COLUMNAS = cargar_modulos()
 
 # Intenta usar PaddleOCR (para Streamlit Cloud)
+OCR_MODE = None
+ocr = None
+
 try:
     from paddleocr import PaddleOCR
     OCR_MODE = "paddle"
@@ -22,11 +35,9 @@ try:
     def cargar_ocr():
         return PaddleOCR(use_angle_cls=True, lang='es')
     ocr = cargar_ocr()
-except ImportError:
-    # Fallback a Tesseract si PaddleOCR no está disponible
-    OCR_MODE = "tesseract"
-    from src import ocr_engine
-    ocr_engine.configurar_tesseract()
+except Exception as e:
+    st.warning(f"⚠️ PaddleOCR no disponible: {str(e)}")
+    OCR_MODE = None
 
 # Configurar página
 st.set_page_config(
@@ -75,70 +86,78 @@ if limpiar_btn:
 
 # Procesar imágenes
 def extraer_texto_ocr(img_pil):
-    """Extrae texto usando PaddleOCR o Tesseract."""
-    try:
-        import cv2
-        img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
-    except ImportError:
-        img_cv = np.array(img_pil)
+    """Extrae texto usando PaddleOCR."""
+    if OCR_MODE != "paddle" or ocr is None:
+        st.error("❌ OCR no está disponible. Asegúrate de que PaddleOCR esté instalado.")
+        return ""
 
-    if OCR_MODE == "paddle":
-        resultado = ocr.ocr(img_cv, cls=True)
-        texto = "\n".join([line[0][1] for line in resultado if resultado])
+    try:
+        img_array = np.array(img_pil)
+        resultado = ocr.ocr(img_array, cls=True)
+        if resultado:
+            texto = "\n".join([line[0][1] for line in resultado if line])
+        else:
+            texto = ""
         return texto
-    else:
-        try:
-            from src import ocr_engine
-            return ocr_engine.extraer_texto_robusto(img_cv)
-        except Exception:
-            return str(img_cv)
+    except Exception as e:
+        st.error(f"Error en OCR: {str(e)}")
+        return ""
 
 if procesar_btn and imagenes_subidas:
-    with st.spinner("⏳ Procesando imágenes con OCR..."):
-        try:
-            datos_procesados = []
-            errores = []
+    if not COLUMNAS or not parser_topografia:
+        st.error("❌ Error: Los módulos del proyecto no se pudieron cargar.")
+        st.info("Intenta recargar la página.")
+    else:
+        with st.spinner("⏳ Procesando imágenes con OCR..."):
+            try:
+                datos_procesados = []
+                errores = []
 
-            # Procesar cada imagen
-            for idx, imagen_archivo in enumerate(imagenes_subidas, 1):
-                try:
-                    # Leer imagen
-                    pil_img = Image.open(imagen_archivo)
+                # Procesar cada imagen
+                for idx, imagen_archivo in enumerate(imagenes_subidas, 1):
+                    try:
+                        # Leer imagen
+                        pil_img = Image.open(imagen_archivo)
 
-                    # Procesar OCR
-                    texto_ocr = extraer_texto_ocr(pil_img)
+                        # Procesar OCR
+                        texto_ocr = extraer_texto_ocr(pil_img)
 
-                    # Parsear datos
-                    registro = parser_topografia.parsear_topografia(texto_ocr)
+                        if not texto_ocr:
+                            errores.append(f"No se extrajo texto de {imagen_archivo.name}")
+                            continue
 
-                    # Validar
-                    registro = validators.validar_registro(registro)
-                    registro["imagen"] = imagen_archivo.name
+                        # Parsear datos
+                        registro = parser_topografia.parsear_topografia(texto_ocr)
 
-                    datos_procesados.append(registro)
+                        # Validar
+                        registro = validators.validar_registro(registro)
+                        registro["imagen"] = imagen_archivo.name
 
-                except Exception as e:
-                    errores.append(f"Error en {imagen_archivo.name}: {str(e)}")
+                        datos_procesados.append(registro)
 
-            # Ordenar registros
-            if datos_procesados:
-                datos_procesados = sorter.ordenar_registros(datos_procesados)
-                st.session_state.datos_procesados = datos_procesados
+                    except Exception as e:
+                        errores.append(f"Error en {imagen_archivo.name}: {str(e)}")
 
-                st.success(f"✅ Se procesaron {len(datos_procesados)} imágenes correctamente")
-                st.info(f"Usando OCR: {OCR_MODE.upper()}")
+                # Ordenar registros
+                if datos_procesados:
+                    datos_procesados = sorter.ordenar_registros(datos_procesados)
+                    st.session_state.datos_procesados = datos_procesados
 
-                if errores:
-                    with st.warning(f"⚠️ {len(errores)} error(es) detectado(s)"):
-                        for error in errores:
-                            st.text(error)
-            else:
-                st.error("❌ No se pudo procesar ninguna imagen")
-                for error in errores:
-                    st.error(error)
+                    st.success(f"✅ Se procesaron {len(datos_procesados)} imágenes correctamente")
+                    if OCR_MODE:
+                        st.info(f"Usando OCR: {OCR_MODE.upper()}")
 
-        except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
+                    if errores:
+                        with st.warning(f"⚠️ {len(errores)} advertencia(s)"):
+                            for error in errores:
+                                st.text(error)
+                else:
+                    st.error("❌ No se pudo procesar ninguna imagen")
+                    for error in errores:
+                        st.error(error)
+
+            except Exception as e:
+                st.error(f"❌ Error general: {str(e)}")
 
 # Mostrar y editar datos
 if st.session_state.datos_procesados:
