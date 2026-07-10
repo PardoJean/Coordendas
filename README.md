@@ -22,6 +22,27 @@ Todos los números se truncan a **2 decimales sin redondear**.
 3. En la página, pulsa **📋 Pegar (Ctrl+V)** — o sube el archivo.
 4. Revisa/corrige la tabla y descarga **Excel** o **CSV**.
 
+## Versión web instantánea (online y offline, sin instalar nada)
+
+Además de la app en Streamlit, hay una versión que corre **directamente en el
+navegador** (sin servidor, sin Python) publicada con **GitHub Pages**:
+
+**Link:** https://pardojean.github.io/Coordenadas/
+
+- Ábrelo desde cualquier celular o computador, sin instalar nada.
+- La primera vez que lo abres necesita internet (para cargar la página).
+  Después de esa primera vez, **funciona sin internet** automáticamente: el
+  propio navegador guarda todo en caché (es una PWA).
+- El reconocimiento de texto (OCR) corre 100% dentro del navegador
+  (Tesseract.js + WebAssembly) — tus imágenes nunca salen de tu dispositivo.
+- El mapa de calles necesita internet; sin conexión se muestra una vista
+  Este/Norte de los puntos que siempre funciona.
+- Exporta a **CSV** (Excel lo abre directamente).
+
+Para habilitarlo por primera vez en el repositorio: **Settings → Pages →
+Source: "Deploy from a branch" → Branch: `main` / `docs`**. El código está en
+la carpeta [`docs/`](docs/).
+
 ## Versión offline (Windows, sin internet)
 
 Además de la web, hay una **app de escritorio** que funciona **sin conexión**:
@@ -54,6 +75,7 @@ python desktop_app.py              # versión de escritorio
 streamlit_app.py     # Interfaz web (Streamlit)
 desktop_app.py       # Interfaz de escritorio (Tkinter, offline)
 topo_parser.py       # Lógica de extracción (X, Y, COTA, ABS, Ensayo) + UTM→lat/lon
+docs/                # App 100% navegador (GitHub Pages, PWA online+offline)
 tests/               # Pruebas del parser con capturas reales
 requirements.txt     # Dependencias de la app web
 packages.txt         # Librerías de sistema para Streamlit Cloud

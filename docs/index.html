@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Procesador Topográfico</title>
+  <meta name="description" content="Lee capturas de topografía con OCR y ubica los puntos en un mapa. Funciona online y offline, sin instalar nada." />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#2563eb" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="cabecera">
+    <h1>📍 Procesador Topográfico</h1>
+    <p>Copia la captura en WhatsApp → pégala aquí → obtén las coordenadas y ubícalas en el mapa.</p>
+    <p id="estado-conexion" class="estado-conexion"></p>
+  </div>
+
+  <main class="contenedor">
+    <section class="fila-entrada">
+      <div class="tarjeta" id="tarjeta-pegar">
+        <h3>📋 Pegar imagen</h3>
+        <p class="ayuda">Haz clic aquí y presiona <kbd>Ctrl</kbd>+<kbd>V</kbd> (o <kbd>Cmd</kbd>+<kbd>V</kbd> en Mac).</p>
+        <div id="zona-pegar" tabindex="0" class="zona-pegar">Clic aquí y pega (Ctrl+V)</div>
+      </div>
+
+      <div class="tarjeta">
+        <h3>⬆️ Subir imagen</h3>
+        <input id="input-archivo" type="file" accept="image/jpeg,image/png,image/webp" multiple />
+        <button id="btn-procesar" class="boton boton-primario" disabled>Procesar imágenes seleccionadas</button>
+      </div>
+    </section>
+
+    <p id="mensaje-estado" class="mensaje" hidden></p>
+
+    <details id="detalle-ocr" hidden>
+      <summary>🔍 Ver texto crudo del último OCR (para depurar un dato mal leído)</summary>
+      <pre id="texto-ocr-crudo"></pre>
+    </details>
+
+    <hr />
+
+    <section id="seccion-resultados" hidden>
+      <h2>Resultados</h2>
+      <p class="ayuda">Haz clic en una celda para corregir un valor. Usa el botón "+ Fila" para añadir manualmente.</p>
+
+      <div class="tabla-scroll">
+        <table id="tabla-resultados">
+          <thead>
+            <tr>
+              <th>Ensayo</th><th>X</th><th>Y</th><th>COTA</th><th>ABS</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <button id="btn-agregar-fila" class="boton boton-secundario">+ Fila</button>
+
+      <div class="metricas">
+        <div class="metrica"><span class="metrica-etiqueta">Registros</span><span id="metrica-registros" class="metrica-valor">0</span></div>
+        <div class="metrica"><span class="metrica-etiqueta">Campos vacíos</span><span id="metrica-vacios" class="metrica-valor">0</span></div>
+        <div class="metrica"><span class="metrica-etiqueta">Puntos en el mapa</span><span id="metrica-puntos" class="metrica-valor">0</span></div>
+      </div>
+
+      <h2>🗺️ Mapa de ubicación</h2>
+      <div class="fila-config-mapa">
+        <label>Datum de las coordenadas
+          <select id="select-datum">
+            <option value="PSAD56" selected>PSAD56</option>
+            <option value="WGS84">WGS84</option>
+          </select>
+        </label>
+        <label>Zona UTM
+          <input id="input-zona" type="number" min="1" max="60" value="17" />
+        </label>
+      </div>
+
+      <div id="mapa" class="mapa-online"></div>
+      <p class="ayuda">Si no hay internet, el mapa de calles no carga; abajo tienes una vista Este/Norte que funciona siempre.</p>
+      <canvas id="mapa-offline" width="760" height="480" class="mapa-offline"></canvas>
+
+      <hr />
+      <div class="fila-descargas">
+        <button id="btn-csv" class="boton boton-secundario">⬇️ Descargar CSV</button>
+        <button id="btn-limpiar" class="boton boton-peligro">🗑️ Limpiar todo</button>
+      </div>
+    </section>
+
+    <p id="mensaje-vacio" class="mensaje-info">Aún no hay datos. Pega o sube una captura para empezar.</p>
+  </main>
+
+  <footer>
+    <p>Procesador Topográfico · <a href="https://github.com/PardoJean/Coordenadas" target="_blank" rel="noopener">GitHub</a> · Funciona sin internet una vez cargado (PWA)</p>
+  </footer>
+
+  <script src="vendor/tesseract/tesseract.min.js"></script>
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="js/parser.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/ocr.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
