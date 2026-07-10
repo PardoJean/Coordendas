@@ -134,28 +134,37 @@ def main():
             todo_ok = False
         print(f"  [{estado}] {nombre}: esperado={esp!r} obtenido={got!r}")
 
-    # ---- OCR de extremo a extremo contra una captura real ----
-    # Caso reportado: con el modo de OCR por defecto (--psm automático), el
-    # campo "Código > DCP 1" se fusionaba con elementos vecinos de la interfaz
-    # y Tesseract lo leía como texto irreconocible ("PIE"), dando "SIN
-    # CLASIFICAR". leer_imagen() prueba varios --psm y toma el resultado más
-    # completo, lo que corrige el caso.
+    # ---- OCR de extremo a extremo contra capturas reales ----
+    # Casos reportados: con el modo de OCR por defecto (--psm automático), el
+    # campo "Código" se fusiona con elementos vecinos de la interfaz y
+    # Tesseract lo lee como texto irreconocible ("PIE", "NULES"...), dando
+    # siempre "SIN CLASIFICAR". leer_imagen() prueba varios --psm sobre toda
+    # la imagen y, si aun así no clasifica, hace una segunda pasada
+    # recortando y releyendo solo el campo "Código" aislado del resto.
     if shutil.which("tesseract"):
-        print("\n== OCR extremo a extremo (imagen real) ==")
+        print("\n== OCR extremo a extremo (capturas reales) ==")
         from PIL import Image
 
-        imagen = Path(__file__).parent.parent / "assets" / "WhatsApp Image 2026-07-01 at 5.01.34 PM.jpeg"
-        reg, _texto = leer_imagen(Image.open(imagen))
-        ok = True
-        esperado = {"Ensayo": "DCP 1", "X": "780739.88", "Y": "9603614.20",
-                    "COTA": "787.39", "ABS": "-196.57"}
-        for k, v in esperado.items():
-            got = reg.get(k)
-            estado = "OK " if got == v else "FALLA"
-            if got != v:
-                ok = False
-            print(f"  [{estado}] {k}: esperado={v!r}  obtenido={got!r}")
-        todo_ok &= ok
+        assets_dir = Path(__file__).parent.parent / "assets"
+        casos_imagen = [
+            ("WhatsApp Image 2026-07-01 at 5.01.34 PM.jpeg",
+             {"Ensayo": "DCP 1", "X": "780739.88", "Y": "9603614.20",
+              "COTA": "787.39", "ABS": "-196.57"}),
+            ("WhatsApp Image 2026-07-10 at 5.01.00 PM - VDC 5.png",
+             {"Ensayo": "VDC 5", "X": "781013.33", "Y": "9603298.24",
+              "COTA": "838.95", "ABS": "40.88"}),
+        ]
+        for nombre_archivo, esperado in casos_imagen:
+            reg, _texto = leer_imagen(Image.open(assets_dir / nombre_archivo))
+            ok = True
+            print(f"  -- {nombre_archivo} --")
+            for k, v in esperado.items():
+                got = reg.get(k)
+                estado = "OK " if got == v else "FALLA"
+                if got != v:
+                    ok = False
+                print(f"    [{estado}] {k}: esperado={v!r}  obtenido={got!r}")
+            todo_ok &= ok
     else:
         print("\n(Se omite el test de OCR extremo a extremo: Tesseract no está instalado)")
 

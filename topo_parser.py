@@ -211,10 +211,70 @@ def _puntuar(reg):
     return puntos
 
 
+_PATRON_ETIQUETA_CODIGO = re.compile(r"C[óÓO0]d[i1]go", re.I)
+
+# --psm para localizar la palabra "Código" dentro de la captura completa
+# (necesitamos las coordenadas de la palabra, por eso se usa image_to_data).
+_PSM_BUSCAR_CODIGO = (3, 4, 11, 12, 6)
+# --psm para releer, ya recortado, solo el valor que está al lado de "Código".
+_PSM_RECORTE_CODIGO = (11, 6, 7)
+
+
+def _recortar_valor_codigo(rgb_img, pytesseract):
+    """Ubica la palabra 'Código' en la captura (vía datos de posición de
+    Tesseract) y devuelve un recorte de la zona inmediatamente a su derecha,
+    donde está el valor (ej. 'DCP 1', 'VDC 5'). Devuelve None si no se
+    encuentra la etiqueta con confianza suficiente."""
+    for psm in _PSM_BUSCAR_CODIGO:
+        datos = pytesseract.image_to_data(
+            rgb_img, lang="spa+eng", config=f"--psm {psm}",
+            output_type=pytesseract.Output.DICT,
+        )
+        for i, txt in enumerate(datos["text"]):
+            if not _PATRON_ETIQUETA_CODIGO.search(txt or ""):
+                continue
+            try:
+                conf = int(float(datos["conf"][i]))
+            except (ValueError, TypeError):
+                conf = -1
+            if conf < 40:
+                continue
+            izq, arriba, ancho, alto = (
+                datos["left"][i], datos["top"][i], datos["width"][i], datos["height"][i],
+            )
+            alto = min(alto, 60)  # descarta cajas anormalmente altas (ruido de OCR)
+            relleno_y = max(12, int(alto * 0.35))
+            x0 = min(izq + ancho + 12, rgb_img.width - 10)
+            x1 = min(x0 + 380, rgb_img.width)
+            y0 = max(arriba - relleno_y, 0)
+            y1 = min(arriba + alto + relleno_y, rgb_img.height)
+            if x1 - x0 < 20:
+                continue
+            return rgb_img.crop((x0, y0, x1, y1))
+    return None
+
+
+def _clasificar_por_recorte(rgb_img, pytesseract):
+    """Segunda pasada dirigida solo al campo 'Código': lo recorta y lo vuelve
+    a leer aislado del resto de la interfaz. El texto completo de la captura
+    suele confundir a Tesseract (el valor de 'Código' se funde con iconos
+    vecinos); aislado, se lee con mucha más fiabilidad."""
+    recorte = _recortar_valor_codigo(rgb_img, pytesseract)
+    if recorte is None:
+        return None
+    for psm in _PSM_RECORTE_CODIGO:
+        texto = pytesseract.image_to_string(recorte, lang="spa+eng", config=f"--psm {psm}")
+        ensayo = extraer_ensayo(texto)
+        if ensayo != "SIN CLASIFICAR":
+            return ensayo
+    return None
+
+
 def leer_imagen(img_pil):
     """Corre OCR (pytesseract) sobre una imagen PIL probando varios --psm y se
-    queda con el resultado más completo. Devuelve (registro, texto_ocr_crudo)
-    del mejor intento."""
+    queda con el resultado más completo. Si el 'Ensayo' no queda clasificado,
+    hace una segunda pasada recortando y releyendo solo el campo 'Código'
+    (ver _clasificar_por_recorte). Devuelve (registro, texto_ocr_crudo)."""
     import pytesseract
 
     rgb = img_pil.convert("RGB")
@@ -227,4 +287,10 @@ def leer_imagen(img_pil):
             mejor_reg, mejor_texto, mejor_puntos = reg, texto, puntos
         if puntos == len(COLUMNAS):
             break  # ya se extrajeron todos los campos, no hace falta seguir probando
+
+    if mejor_reg.get("Ensayo") == "SIN CLASIFICAR":
+        ensayo_recorte = _clasificar_por_recorte(rgb, pytesseract)
+        if ensayo_recorte:
+            mejor_reg = {**mejor_reg, "Ensayo": ensayo_recorte}
+
     return mejor_reg, mejor_texto
