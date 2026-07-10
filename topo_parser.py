@@ -107,9 +107,11 @@ def extraer_ensayo(texto):
         return "SIN CLASIFICAR"
 
     _, tipo, m = resultado
-    # Número justo después de la coincidencia (ignorando ceros a la izquierda)
+    # Número justo después de la coincidencia (ignorando ceros a la izquierda).
+    # Se toleran 1-3 caracteres de ruido de OCR entre el tipo y el número
+    # (ej. "VDCS5" -> el OCR mete una "S" espuria entre "VDC" y "5").
     resto = texto_busqueda[m.end():m.end() + 10]
-    mnum = re.match(r"\s*0*(\d{1,3})", resto)
+    mnum = re.match(r"[^\d]{0,3}0*(\d{1,3})", resto)
     return f"{tipo} {int(mnum.group(1))}" if mnum else tipo
 
 
@@ -129,6 +131,17 @@ def extraer_coordenadas(tokens):
     # ---- X (E) y Y (N) buscando la etiqueta ----
     etiquetas_e = {"E", "E:", "ESTE", "ESTE:"}
     etiquetas_n = {"N", "N:", "NORTE", "NORTE:"}
+
+    def _parece_coordenada_utm(valor):
+        """Una 'E'/'N' sueltas de un solo caracter son un imán para ruido de
+        OCR (iconos, letras mal leídas de otra parte de la pantalla). Antes
+        de aceptar el número que las sigue como coordenada, exige que tenga
+        pinta de UTM real (parte entera larga)."""
+        if not valor:
+            return False
+        entero = valor.split(".")[0].lstrip("+-")
+        return len(entero) >= 5
+
     for i, tok in enumerate(tokens):
         tu = tok.upper().strip()
         # Etiqueta y número en el mismo token: "E 780720.633"
@@ -136,13 +149,17 @@ def extraer_coordenadas(tokens):
         if me and not res["X"]:
             res["X"] = _num_limpio(me.group(1))
         elif tu in etiquetas_e and not res["X"] and i + 1 < len(tokens):
-            res["X"] = _num_limpio(tokens[i + 1]) or ""
+            candidato = _num_limpio(tokens[i + 1]) or ""
+            if _parece_coordenada_utm(candidato):
+                res["X"] = candidato
 
         mn = re.match(r"^N[\s:.\-]+([+-]?\d[\d.,\s]*)$", tu)
         if mn and not res["Y"]:
             res["Y"] = _num_limpio(mn.group(1))
         elif tu in etiquetas_n and not res["Y"] and i + 1 < len(tokens):
-            res["Y"] = _num_limpio(tokens[i + 1]) or ""
+            candidato = _num_limpio(tokens[i + 1]) or ""
+            if _parece_coordenada_utm(candidato):
+                res["Y"] = candidato
 
     # ---- Respaldo por magnitud (UTM: Norte = 7 dígitos con 9; Este = 6 dígitos) ----
     if not res["X"] or not res["Y"]:

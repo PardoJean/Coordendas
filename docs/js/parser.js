@@ -88,7 +88,9 @@
     const { tipo, m } = resultado;
     const fin = m.index + m[0].length;
     const resto = textoBusqueda.slice(fin, fin + 10);
-    const mnum = resto.match(/^\s*0*(\d{1,3})/);
+    // Tolera 1-3 caracteres de ruido de OCR entre el tipo y el número
+    // (ej. "VDCS5" -> el OCR mete una "S" espuria entre "VDC" y "5").
+    const mnum = resto.match(/^[^\d]{0,3}0*(\d{1,3})/);
     return mnum ? `${tipo} ${parseInt(mnum[1], 10)}` : tipo;
   }
 
@@ -103,6 +105,17 @@
     const etiquetasE = new Set(["E", "E:", "ESTE", "ESTE:"]);
     const etiquetasN = new Set(["N", "N:", "NORTE", "NORTE:"]);
 
+    // Una "E" o "N" sueltas de un solo caracter son un imán para ruido de
+    // OCR (iconos, letras mal leídas de otra parte de la pantalla). Antes
+    // de aceptar el número que las sigue como coordenada, exigimos que
+    // tenga pinta de UTM real (parte entera larga); si no, se ignora y se
+    // sigue buscando una coincidencia mejor más adelante en el texto.
+    function pareceCoordenadaUtm(valor) {
+      if (!valor) return false;
+      const entero = valor.split(".")[0].replace(/^[+-]/, "");
+      return entero.length >= 5;
+    }
+
     for (let i = 0; i < tokens.length; i++) {
       const tu = tokens[i].toUpperCase().trim();
 
@@ -110,14 +123,16 @@
       if (me && !res.X) {
         res.X = numLimpio(me[1]) || "";
       } else if (etiquetasE.has(tu) && !res.X && i + 1 < tokens.length) {
-        res.X = numLimpio(tokens[i + 1]) || "";
+        const candidato = numLimpio(tokens[i + 1]) || "";
+        if (pareceCoordenadaUtm(candidato)) res.X = candidato;
       }
 
       const mn = tu.match(/^N[\s:.\-]+([+-]?\d[\d.,\s]*)$/);
       if (mn && !res.Y) {
         res.Y = numLimpio(mn[1]) || "";
       } else if (etiquetasN.has(tu) && !res.Y && i + 1 < tokens.length) {
-        res.Y = numLimpio(tokens[i + 1]) || "";
+        const candidato = numLimpio(tokens[i + 1]) || "";
+        if (pareceCoordenadaUtm(candidato)) res.Y = candidato;
       }
     }
 

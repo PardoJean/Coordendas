@@ -5,7 +5,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-from topo_parser import parsear, truncar_2, procesar_abs, extraer_ensayo, leer_imagen
+from topo_parser import (
+    parsear,
+    truncar_2,
+    procesar_abs,
+    extraer_ensayo,
+    extraer_coordenadas,
+    leer_imagen,
+)
 
 # ---- Tokens tal como EasyOCR los devuelve (celda por celda) ----
 
@@ -111,6 +118,7 @@ def main():
         ("C6digo > POZO1", "POZO 1"),        # "Código" y número pegados sin espacio
         ("Codigo > DOP 3", "DCP 3"),         # DCP mal leído
         ("sin ningun codigo reconocible aqui", "SIN CLASIFICAR"),
+        ("Nombre 0.000 (MA VDCS9 Y", "VDC 9"),  # ruido entre el tipo y el número ("S" espuria)
     ]
     for texto_ocr, esperado in casos_ensayo:
         got = extraer_ensayo(texto_ocr)
@@ -118,6 +126,35 @@ def main():
         if got != esperado:
             todo_ok = False
         print(f"  [{estado}] {texto_ocr!r}: esperado={esperado!r} obtenido={got!r}")
+
+    # ---- Ruido de OCR: una "e"/"n" sueltas no deben robar la coordenada ----
+    # Caso reportado: un caracter suelto ("e") en algún ícono de la interfaz
+    # se confunde con la etiqueta "E" y toma un valor sin relación (ej. de la
+    # barra de estado) antes de llegar a la "E" real más abajo en la imagen.
+    print("\n== Coordenadas con ruido de OCR (etiqueta E/N espuria) ==")
+    TOKENS_RUIDO = [
+        "H:0,011",       # ruido de la barra de estado (no es una coordenada)
+        "e",             # caracter suelto que NO debe tomarse como "E"
+        "H:0,011",       # el número que sigue tampoco es una coordenada real
+        "N",             # "N" espuria (ej. un ícono), número corto -> se ignora
+        "12",
+        "algo de relleno",
+        "N",             # la "N" real
+        "9111111.11",
+        "algo mas",
+        "E",             # la "E" real
+        "711111.11",
+    ]
+    coords_ruido = extraer_coordenadas(TOKENS_RUIDO)
+    ok = True
+    esperado_ruido = {"X": "711111.11", "Y": "9111111.11"}
+    for k, v in esperado_ruido.items():
+        got = coords_ruido.get(k)
+        estado = "OK " if got == v else "FALLA"
+        if got != v:
+            ok = False
+        print(f"  [{estado}] {k}: esperado={v!r}  obtenido={got!r}")
+    todo_ok &= ok
 
     # ---- Casos unitarios de reglas ----
     print("\n== Reglas unitarias ==")
