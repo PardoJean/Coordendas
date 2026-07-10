@@ -1,10 +1,11 @@
 """Tests del parser topográfico contra ejemplos reales (capturas de WhatsApp)."""
+import shutil
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-from topo_parser import parsear, truncar_2, procesar_abs, extraer_ensayo
+from topo_parser import parsear, truncar_2, procesar_abs, extraer_ensayo, leer_imagen
 
 # ---- Tokens tal como EasyOCR los devuelve (celda por celda) ----
 
@@ -132,6 +133,31 @@ def main():
         if got != esp:
             todo_ok = False
         print(f"  [{estado}] {nombre}: esperado={esp!r} obtenido={got!r}")
+
+    # ---- OCR de extremo a extremo contra una captura real ----
+    # Caso reportado: con el modo de OCR por defecto (--psm automático), el
+    # campo "Código > DCP 1" se fusionaba con elementos vecinos de la interfaz
+    # y Tesseract lo leía como texto irreconocible ("PIE"), dando "SIN
+    # CLASIFICAR". leer_imagen() prueba varios --psm y toma el resultado más
+    # completo, lo que corrige el caso.
+    if shutil.which("tesseract"):
+        print("\n== OCR extremo a extremo (imagen real) ==")
+        from PIL import Image
+
+        imagen = Path(__file__).parent.parent / "assets" / "WhatsApp Image 2026-07-01 at 5.01.34 PM.jpeg"
+        reg, _texto = leer_imagen(Image.open(imagen))
+        ok = True
+        esperado = {"Ensayo": "DCP 1", "X": "780739.88", "Y": "9603614.20",
+                    "COTA": "787.39", "ABS": "-196.57"}
+        for k, v in esperado.items():
+            got = reg.get(k)
+            estado = "OK " if got == v else "FALLA"
+            if got != v:
+                ok = False
+            print(f"  [{estado}] {k}: esperado={v!r}  obtenido={got!r}")
+        todo_ok &= ok
+    else:
+        print("\n(Se omite el test de OCR extremo a extremo: Tesseract no está instalado)")
 
     print("\n" + ("TODOS LOS TESTS PASARON" if todo_ok else "HAY FALLAS"))
     return 0 if todo_ok else 1

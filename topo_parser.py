@@ -186,3 +186,45 @@ def parsear(tokens):
         "COTA": coords["COTA"],
         "ABS": coords["ABS"],
     }
+
+
+COLUMNAS = ["Ensayo", "X", "Y", "COTA", "ABS"]
+
+# Modos de segmentación de página (--psm) de Tesseract a probar, en orden.
+# El modo por defecto (segmentación automática) suele fusionar el campo
+# "Código" con elementos vecinos de la interfaz (flechas, iconos) y producir
+# texto irreconocible; --psm 6 (bloque uniforme de texto) resultó mucho más
+# fiable en pruebas con capturas reales de la app de topografía.
+PSM_INTENTOS = (6, 4, 3, 11)
+
+
+def _puntuar(reg):
+    """Cuenta cuántos campos quedaron completos (Ensayo clasificado + datos no vacíos)."""
+    puntos = 0
+    for c in COLUMNAS:
+        valor = reg.get(c, "")
+        if c == "Ensayo":
+            if valor and valor != "SIN CLASIFICAR":
+                puntos += 1
+        elif valor != "":
+            puntos += 1
+    return puntos
+
+
+def leer_imagen(img_pil):
+    """Corre OCR (pytesseract) sobre una imagen PIL probando varios --psm y se
+    queda con el resultado más completo. Devuelve (registro, texto_ocr_crudo)
+    del mejor intento."""
+    import pytesseract
+
+    rgb = img_pil.convert("RGB")
+    mejor_reg, mejor_texto, mejor_puntos = None, "", -1
+    for psm in PSM_INTENTOS:
+        texto = pytesseract.image_to_string(rgb, lang="spa+eng", config=f"--psm {psm}")
+        reg = parsear(texto)
+        puntos = _puntuar(reg)
+        if puntos > mejor_puntos:
+            mejor_reg, mejor_texto, mejor_puntos = reg, texto, puntos
+        if puntos == len(COLUMNAS):
+            break  # ya se extrajeron todos los campos, no hace falta seguir probando
+    return mejor_reg, mejor_texto

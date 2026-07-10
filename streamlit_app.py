@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 from PIL import Image
 
-from topo_parser import parsear
+from topo_parser import leer_imagen
 
 # ────────────────────────────────────────────────────────────────────────────
 # Configuración
@@ -64,14 +64,6 @@ if not ocr_disponible:
     st.stop()
 
 
-def leer_imagen(img_pil: Image.Image) -> tuple[dict, str]:
-    """Corre OCR sobre una imagen PIL. Devuelve (registro, texto_ocr_crudo)."""
-    import pytesseract
-
-    texto = pytesseract.image_to_string(img_pil.convert("RGB"), lang="spa+eng")
-    return parsear(texto), texto
-
-
 # ────────────────────────────────────────────────────────────────────────────
 # Estado
 # ────────────────────────────────────────────────────────────────────────────
@@ -109,10 +101,14 @@ with col_pegar:
 
     if pegado is not None:
         with st.spinner("Leyendo imagen…"):
-            reg, texto_crudo = leer_imagen(pegado)
-            agregar_registro(reg)
-            st.session_state.ultimo_ocr_crudo = texto_crudo
-        st.success(f"Añadido: {reg.get('Ensayo', '—')}")
+            try:
+                reg, texto_crudo = leer_imagen(pegado)
+            except Exception as e:  # noqa: BLE001
+                st.error(f"No se pudo leer la imagen pegada: {e}")
+            else:
+                agregar_registro(reg)
+                st.session_state.ultimo_ocr_crudo = texto_crudo
+                st.success(f"Añadido: {reg.get('Ensayo', '—')}")
 
 with col_subir:
     st.subheader("Subir imagen")
@@ -123,12 +119,21 @@ with col_subir:
         label_visibility="collapsed",
     )
     if archivos and st.button("Procesar imágenes subidas", use_container_width=True):
+        errores = []
         with st.spinner("Leyendo imágenes…"):
             for archivo in archivos:
-                reg, texto_crudo = leer_imagen(Image.open(archivo))
+                try:
+                    reg, texto_crudo = leer_imagen(Image.open(archivo))
+                except Exception as e:  # noqa: BLE001
+                    errores.append(f"{archivo.name}: {e}")
+                    continue
                 agregar_registro(reg)
                 st.session_state.ultimo_ocr_crudo = texto_crudo
-        st.success(f"Procesadas {len(archivos)} imagen(es).")
+        procesadas = len(archivos) - len(errores)
+        if procesadas:
+            st.success(f"Procesadas {procesadas} imagen(es).")
+        for err in errores:
+            st.error(f"No se pudo leer {err}")
 
 if st.session_state.ultimo_ocr_crudo:
     with st.expander("🔍 Ver texto crudo del último OCR (para depurar un dato mal leído)"):
