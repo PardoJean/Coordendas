@@ -14,7 +14,12 @@ from topo_parser import (
     DATUM_DEFECTO,
     DATUMS,
     ZONA_UTM_DEFECTO,
+    TIPOS,
+    SIMBOLOGIA,
+    _SIMBOLOGIA_SIN,
     leer_imagen,
+    ordenar_registros,
+    extraer_tipo_numero,
     utm_a_latlon,
 )
 
@@ -198,7 +203,7 @@ if not st.session_state.registros:
 st.subheader("Resultados")
 st.caption("Doble clic en una celda para corregir. Usa la última fila vacía para añadir manualmente.")
 
-df = pd.DataFrame(st.session_state.registros, columns=COLUMNAS)
+df = pd.DataFrame(ordenar_registros(st.session_state.registros), columns=COLUMNAS)
 df_editado = st.data_editor(
     df,
     use_container_width=True,
@@ -239,7 +244,7 @@ def construir_puntos(df_datos: pd.DataFrame, zona: int, datum: str) -> pd.DataFr
 
 
 st.markdown("### 🗺️ Mapa de ubicación")
-cfg1, cfg2 = st.columns(2)
+cfg1, cfg2, cfg3 = st.columns(3)
 datum = cfg1.selectbox(
     "Datum de las coordenadas",
     options=list(DATUMS),
@@ -252,6 +257,12 @@ zona = cfg2.number_input(
     min_value=1, max_value=60, value=ZONA_UTM_DEFECTO, step=1,
     help="Todos los puntos se convierten de UTM (hemisferio Sur) a latitud/longitud usando esta zona.",
 )
+capas_visibles = cfg3.multiselect(
+    "Capas visibles",
+    options=TIPOS + ["SIN CLASIFICAR"],
+    default=TIPOS + ["SIN CLASIFICAR"],
+    help="Selecciona qué tipos de ensayo mostrar en el mapa.",
+)
 
 df_mapa = construir_puntos(df_editado, int(zona), datum)
 m3.metric("Puntos en el mapa", len(df_mapa))
@@ -261,38 +272,54 @@ if df_mapa.empty:
 else:
     import pydeck as pdk
 
-    capa_puntos = pdk.Layer(
-        "ScatterplotLayer",
-        data=df_mapa,
-        get_position=["lon", "lat"],
-        get_fill_color=[220, 38, 38, 220],
-        get_radius=6,
-        radius_min_pixels=7,
-        radius_max_pixels=16,
-        stroked=True,
-        get_line_color=[255, 255, 255],
-        line_width_min_pixels=2,
-        pickable=True,
-    )
-    capa_texto = pdk.Layer(
+    df_mapa["_tipo"], _ = zip(*df_mapa["Ensayo"].apply(extraer_tipo_numero))
+    df_filtrado = df_mapa[df_mapa["_tipo"].isin(capas_visibles)]
+
+    capas = []
+    for tipo in TIPOS + ["SIN CLASIFICAR"]:
+        s = df_filtrado[df_filtrado["_tipo"] == tipo]
+        if s.empty:
+            continue
+        simb = SIMBOLOGIA.get(tipo) or _SIMBOLOGIA_SIN
+        r, g, b = simb["color"]
+        capas.append(pdk.Layer(
+            "ScatterplotLayer",
+            data=s,
+            get_position=["lon", "lat"],
+            get_fill_color=[r, g, b, 220],
+            get_radius=simb["radio"],
+            radius_min_pixels=5,
+            radius_max_pixels=18,
+            stroked=True,
+            get_line_color=[255, 255, 255],
+            line_width_min_pixels=2,
+            pickable=True,
+        ))
+
+    capas.append(pdk.Layer(
         "TextLayer",
-        data=df_mapa,
+        data=df_filtrado,
         get_position=["lon", "lat"],
         get_text="Ensayo",
         get_size=14,
         get_color=[17, 24, 39],
         get_pixel_offset=[0, -16],
         get_alignment_baseline="'bottom'",
-    )
-    vista = pdk.ViewState(
-        latitude=float(df_mapa["lat"].mean()),
-        longitude=float(df_mapa["lon"].mean()),
-        zoom=15,
-        pitch=0,
-    )
+    ))
+
+    if not df_filtrado.empty:
+        vista = pdk.ViewState(
+            latitude=float(df_filtrado["lat"].mean()),
+            longitude=float(df_filtrado["lon"].mean()),
+            zoom=15,
+            pitch=0,
+        )
+    else:
+        vista = pdk.ViewState(latitude=0, longitude=0, zoom=2)
+
     st.pydeck_chart(
         pdk.Deck(
-            layers=[capa_puntos, capa_texto],
+            layers=capas,
             initial_view_state=vista,
             map_style="road",
             tooltip={"text": "{Ensayo}\nX: {X}\nY: {Y}\nCOTA: {COTA}"},
@@ -305,30 +332,21 @@ else:
 # Descargas
 # ────────────────────────────────────────────────────────────────────────────
 st.divider()
-d1, d2, d3 = st.columns(3)
+d1, d2 = st.columns(2)
 
 with d1:
-    st.download_button(
-        "⬇️ CSV",
-        df_editado.to_csv(index=False).encode("utf-8"),
-        "coordenadas.csv",
-        "text/csv",
-        use_container_width=True,
-    )
-
-with d2:
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df_editado.to_excel(writer, sheet_name="Coordenadas", index=False)
     st.download_button(
-        "⬇️ Excel",
+        "⬇️ Descargar Excel",
         buffer.getvalue(),
         "coordenadas.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
     )
 
-with d3:
+with d2:
     if st.button("🗑️ Limpiar todo", use_container_width=True):
         st.session_state.registros = []
         st.rerun()

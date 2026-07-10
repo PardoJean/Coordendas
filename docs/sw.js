@@ -57,7 +57,7 @@ self.addEventListener("fetch", (evento) => {
       if (respuestaCache) return respuestaCache;
       return fetch(evento.request)
         .then((respuestaRed) => {
-          if (respuestaRed && respuestaRed.status === 200 && respuestaRed.type === "basic") {
+          if (respuestaRed && respuestaRed.status === 200 && (respuestaRed.type === "basic" || respuestaRed.type === "cors")) {
             const copia = respuestaRed.clone();
             caches.open(CACHE).then((cache) => cache.put(evento.request, copia));
           }

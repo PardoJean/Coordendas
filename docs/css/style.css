@@ -102,6 +102,10 @@ td[contenteditable="true"]:focus { outline: 2px solid var(--azul); background: #
 .mapa-offline { width: 100%; max-width: 760px; height: auto; border-radius: 12px; border: 1px solid var(--borde); background: #fff; display: block; }
 
 .fila-descargas { display: flex; gap: .8rem; flex-wrap: wrap; }
+.capas-control { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-bottom: .8rem; font-size: .88rem; }
+.capas-etiqueta { font-weight: 700; color: var(--texto-suave); margin-right: .3rem; }
+.capas-control label { display: inline-flex; align-items: center; gap: .25rem; cursor: pointer; }
+.capas-control input[type="checkbox"] { accent-color: var(--azul); }
 
 footer { text-align: center; color: var(--texto-suave); font-size: .82rem; padding: 1.5rem 1rem 2.5rem; }
 footer a { color: var(--azul); }

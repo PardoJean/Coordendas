@@ -42,7 +42,7 @@ def _configurar_tesseract():
 
 _configurar_tesseract()
 
-from topo_parser import COLUMNAS, leer_imagen  # noqa: E402  (tras configurar Tesseract)
+from topo_parser import COLUMNAS, TIPOS, SIMBOLOGIA, _SIMBOLOGIA_SIN, leer_imagen, ordenar_registros, extraer_tipo_numero  # noqa: E402
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -82,6 +82,7 @@ class App(tk.Tk):
         self.cola = queue.Queue()
         self.trabajador = None
         self.ultima_ruta = None
+        self.registros_tmp = []  # para acumular y ordenar al terminar
 
         self._crear_widgets()
         self.after(100, self._revisar_cola)
@@ -94,7 +95,6 @@ class App(tk.Tk):
         ttk.Button(barra, text="📂 Abrir imágenes…", command=self.abrir_imagenes).pack(side="left", padx=3)
         ttk.Button(barra, text="🗺️ Ver Este/Norte", command=self.ver_mapa).pack(side="left", padx=3)
         ttk.Button(barra, text="⬇️ Guardar Excel", command=self.guardar_excel).pack(side="left", padx=3)
-        ttk.Button(barra, text="⬇️ Guardar CSV", command=self.guardar_csv).pack(side="left", padx=3)
         ttk.Button(barra, text="🗑️ Limpiar", command=self.limpiar).pack(side="left", padx=3)
 
         cont = ttk.Frame(self, padding=(8, 0))
@@ -139,11 +139,12 @@ class App(tk.Tk):
         self.trabajador.start()
 
     def ver_mapa(self):
+        registros = [dict(zip(COLUMNAS, t)) for t in self._filas()]
+        registros = ordenar_registros(registros)
         puntos = []
-        for item in self.tabla.get_children():
-            ensayo, x, y = (self.tabla.set(item, c) for c in ("Ensayo", "X", "Y"))
+        for reg in registros:
             try:
-                puntos.append((ensayo or "—", float(x), float(y)))
+                puntos.append((reg["Ensayo"] or "—", float(reg["X"]), float(reg["Y"])))
             except (ValueError, TypeError):
                 continue
         if not puntos:
@@ -160,31 +161,60 @@ class App(tk.Tk):
 
         ventana = tk.Toplevel(self)
         ventana.title("Ubicación de los puntos (Este / Norte)")
-        ventana.geometry("720x600")
+        ventana.geometry("840x660")
+
+        marco_ctrls = ttk.Frame(ventana)
+        marco_ctrls.pack(side="top", fill="x", padx=8, pady=4)
+        ttk.Label(marco_ctrls, text="Capas:").pack(side="left", padx=2)
+        vars_capas = {}
+        for tipo in TIPOS + ["SIN CLASIFICAR"]:
+            v = tk.BooleanVar(value=True)
+            vars_capas[tipo] = v
+            cb = ttk.Checkbutton(marco_ctrls, text=tipo, variable=v)
+            cb.pack(side="left", padx=4)
 
         fig = plt.Figure(figsize=(7, 6), dpi=100)
         ax = fig.add_subplot(111)
-        xs = [p[1] for p in puntos]
-        ys = [p[2] for p in puntos]
-        ax.scatter(xs, ys, c="#dc2626", s=60, zorder=3, edgecolors="white")
-        for nombre, x, y in puntos:
-            ax.annotate(nombre, (x, y), textcoords="offset points", xytext=(6, 6), fontsize=9)
-        ax.set_xlabel("Este (X)")
-        ax.set_ylabel("Norte (Y)")
-        ax.set_title("Puntos topográficos")
-        ax.grid(True, linestyle="--", alpha=0.4)
-        ax.ticklabel_format(style="plain", useOffset=False)
-        ax.set_aspect("equal", adjustable="datalim")
-
         lienzo = FigureCanvasTkAgg(fig, master=ventana)
-        lienzo.draw()
         lienzo.get_tk_widget().pack(fill="both", expand=True)
 
+        def redibujar():
+            ax.clear()
+            tipos_activos = {t for t, v in vars_capas.items() if v.get()}
+            xs, ys = [], []
+            for nombre, x, y in puntos:
+                tipo, _ = extraer_tipo_numero(nombre)
+                if tipo not in tipos_activos:
+                    continue
+                simb = SIMBOLOGIA.get(tipo) or _SIMBOLOGIA_SIN
+                color = f"#{simb['color'][0]:02x}{simb['color'][1]:02x}{simb['color'][2]:02x}"
+                ax.scatter([x], [y], c=color, s=80, zorder=3, edgecolors="white",
+                          marker=simb["marcador"])
+                ax.annotate(nombre, (x, y), textcoords="offset points", xytext=(6, 6), fontsize=9)
+                xs.append(x)
+                ys.append(y)
+            if xs and ys:
+                ax.set_xlim(min(xs) - 5, max(xs) + 5)
+                ax.set_ylim(min(ys) - 5, max(ys) + 5)
+            ax.set_xlabel("Este (X)")
+            ax.set_ylabel("Norte (Y)")
+            ax.set_title("Puntos topográficos")
+            ax.grid(True, linestyle="--", alpha=0.4)
+            ax.ticklabel_format(style="plain", useOffset=False)
+            ax.set_aspect("equal", adjustable="datalim")
+            lienzo.draw()
+
+        for v in vars_capas.values():
+            v.trace_add("write", lambda *_: redibujar())
+
+        redibujar()
+
     def guardar_excel(self):
-        filas = self._filas()
+        filas = [dict(zip(COLUMNAS, t)) for t in self._filas()]
         if not filas:
             messagebox.showerror("Error", "No hay datos para guardar.")
             return
+        filas = ordenar_registros(filas)
         ruta = filedialog.asksaveasfilename(
             title="Guardar Excel", defaultextension=".xlsx",
             filetypes=[("Excel", "*.xlsx")], initialfile="coordenadas.xlsx",
@@ -197,29 +227,6 @@ class App(tk.Tk):
             self.ultima_ruta = ruta
             self._log(f"Excel guardado: {ruta}")
             messagebox.showinfo("Guardado", f"Excel guardado en:\n{ruta}")
-        except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Error", str(e))
-
-    def guardar_csv(self):
-        filas = self._filas()
-        if not filas:
-            messagebox.showerror("Error", "No hay datos para guardar.")
-            return
-        ruta = filedialog.asksaveasfilename(
-            title="Guardar CSV", defaultextension=".csv",
-            filetypes=[("CSV", "*.csv")], initialfile="coordenadas.csv",
-        )
-        if not ruta:
-            return
-        try:
-            import csv
-            with open(ruta, "w", newline="", encoding="utf-8") as f:
-                escritor = csv.writer(f)
-                escritor.writerow(COLUMNAS)
-                escritor.writerows(filas)
-            self.ultima_ruta = ruta
-            self._log(f"CSV guardado: {ruta}")
-            messagebox.showinfo("Guardado", f"CSV guardado en:\n{ruta}")
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", str(e))
 
@@ -272,8 +279,15 @@ class App(tk.Tk):
                 elif tipo == "log":
                     self._log(dato)
                 elif tipo == "fila":
+                    self.registros_tmp.append(dato)
                     self.tabla.insert("", "end", values=tuple(dato.get(c, "") for c in COLUMNAS))
                 elif tipo == "fin":
+                    self.registros_tmp = ordenar_registros(self.registros_tmp)
+                    for item in self.tabla.get_children():
+                        self.tabla.delete(item)
+                    for reg in self.registros_tmp:
+                        self.tabla.insert("", "end", values=tuple(reg.get(c, "") for c in COLUMNAS))
+                    self.registros_tmp = []
                     self.estado.configure(text=f"Listo. Procesadas {dato} imagen(es).")
         except queue.Empty:
             pass

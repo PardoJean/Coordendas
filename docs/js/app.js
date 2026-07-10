@@ -26,11 +26,13 @@
     selectDatum: document.getElementById("select-datum"),
     inputZona: document.getElementById("input-zona"),
     mapaOffline: document.getElementById("mapa-offline"),
-    btnCsv: document.getElementById("btn-csv"),
+    btnXlsx: document.getElementById("btn-xlsx"),
     btnLimpiar: document.getElementById("btn-limpiar"),
+    capasControl: document.getElementById("capas-control"),
   };
 
   let registros = []; // [{Ensayo,X,Y,COTA,ABS}]
+  let _idCounter = 0;
   let archivosSeleccionados = [];
   let mapaLeaflet = null;
   let capaMarcadores = null;
@@ -111,6 +113,7 @@
   // ---- Tabla de resultados ----------------------------------------------
   function agregarRegistro(reg) {
     registros.push({
+      _id: ++_idCounter,
       Ensayo: reg.Ensayo || "",
       X: reg.X || "",
       Y: reg.Y || "",
@@ -120,15 +123,19 @@
   }
 
   function renderizarTabla() {
+    const ordenados = window.TopoParser.ordenarRegistros(registros);
     el.tablaBody.innerHTML = "";
-    registros.forEach((reg, indice) => {
+    for (const reg of ordenados) {
       const tr = document.createElement("tr");
       for (const col of COLUMNAS) {
         const td = document.createElement("td");
         td.contentEditable = "true";
         td.textContent = reg[col];
+        td.dataset.id = reg._id;
+        td.dataset.col = col;
         td.addEventListener("input", () => {
-          registros[indice][col] = td.textContent.trim();
+          const r = registros.find((x) => x._id === reg._id);
+          if (r) r[col] = td.textContent.trim();
           renderizarMetricasYMapa();
         });
         tr.appendChild(td);
@@ -139,13 +146,13 @@
       btn.textContent = "✕";
       btn.title = "Eliminar fila";
       btn.addEventListener("click", () => {
-        registros.splice(indice, 1);
+        registros = registros.filter((x) => x._id !== reg._id);
         renderizarTodo();
       });
       tdBorrar.appendChild(btn);
       tr.appendChild(tdBorrar);
       el.tablaBody.appendChild(tr);
-    });
+    }
   }
 
   el.btnAgregarFila.addEventListener("click", () => {
@@ -161,12 +168,59 @@
     renderizarTodo();
   });
 
+  // ---- Simbología canvas --------------------------------------------
+  function dibujarFormaCanvas(ctx, x, y, tipo, color, oscuro) {
+    const r = tipo === "POZO" ? 8 : tipo === "VDC" ? 7 : tipo === "DCP" ? 6 : tipo === "TIS" ? 7 : tipo === "DCA" ? 8 : 6;
+    const [cr, cg, cb] = color;
+    ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    if (tipo === "POZO" || !tipo) {
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+    } else if (tipo === "VDC") {
+      ctx.beginPath();
+      ctx.moveTo(x, y - r); ctx.lineTo(x + r, y + r * 0.7); ctx.lineTo(x - r, y + r * 0.7);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (tipo === "DCP") {
+      ctx.fillRect(x - r * 0.7, y - r * 0.7, r * 1.4, r * 1.4);
+      ctx.strokeRect(x - r * 0.7, y - r * 0.7, r * 1.4, r * 1.4);
+    } else if (tipo === "TIS") {
+      ctx.beginPath();
+      ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.7, y);
+      ctx.lineTo(x, y + r); ctx.lineTo(x - r * 0.7, y);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (tipo === "DCA") {
+      ctx.beginPath();
+      ctx.moveTo(x - r, y); ctx.lineTo(x + r, y);
+      ctx.moveTo(x, y - r); ctx.lineTo(x, y + r);
+      ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
+      ctx.lineWidth = 4; ctx.stroke();
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI);
+      ctx.fillStyle = "transparent"; ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
+      ctx.lineWidth = 2; ctx.stroke();
+    }
+  }
+
+  // ---- Capas activas ------------------------------------------------
+  function getTiposActivos() {
+    const cbs = el.capasControl.querySelectorAll(".capa-toggle");
+    const activos = [];
+    for (const cb of cbs) if (cb.checked) activos.push(cb.dataset.tipo);
+    return activos;
+  }
+
   // ---- Métricas + mapa ----------------------------------------------
   function construirPuntosMapa() {
     const zona = parseInt(el.inputZona.value, 10) || 17;
     const datum = el.selectDatum.value;
+    const activos = getTiposActivos();
     const puntos = [];
     for (const reg of registros) {
+      const [tipo] = window.TopoParser.extraerTipoNumero(reg.Ensayo);
+      if (!activos.includes(tipo)) continue;
       const geo = window.TopoGeo.utmALatLon(reg.X, reg.Y, { zona, datum });
       if (!geo) continue;
       puntos.push({ ...reg, lat: geo.lat, lon: geo.lon });
@@ -198,11 +252,15 @@
     if (!puntos.length) return;
     const bounds = [];
     for (const p of puntos) {
+      const [tipo] = window.TopoParser.extraerTipoNumero(p.Ensayo);
+      const simb = window.TopoParser.simbologiaPara(p.Ensayo);
+      const [r, g, b] = simb.color;
+      const colorStr = `rgb(${r},${g},${b})`;
       const marcador = L.circleMarker([p.lat, p.lon], {
-        radius: 7,
+        radius: simb.radio,
         color: "#fff",
         weight: 2,
-        fillColor: "#dc2626",
+        fillColor: colorStr,
         fillOpacity: 0.9,
       }).bindTooltip(`<b>${p.Ensayo || "—"}</b><br>X: ${p.X}<br>Y: ${p.Y}<br>COTA: ${p.COTA}`, {
         permanent: false,
@@ -243,7 +301,7 @@
     const escala = Math.min((w - 2 * margen) / rangoX, (h - 2 * margen) / rangoY);
 
     const px = (x) => margen + (x - minX) * escala;
-    const py = (y) => h - margen - (y - minY) * escala; // Norte hacia arriba
+    const py = (y) => h - margen - (y - minY) * escala;
 
     ctx.strokeStyle = oscuro ? "#1e293b" : "#e2e8f0";
     ctx.lineWidth = 1;
@@ -264,13 +322,9 @@
     for (const p of puntos) {
       const x = px(parseFloat(p.X));
       const y = py(parseFloat(p.Y));
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, 2 * Math.PI);
-      ctx.fillStyle = "#dc2626";
-      ctx.fill();
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      const [tipo] = window.TopoParser.extraerTipoNumero(p.Ensayo);
+      const simb = window.TopoParser.simbologiaPara(p.Ensayo);
+      dibujarFormaCanvas(ctx, x, y, tipo, simb.color, oscuro);
       ctx.fillStyle = oscuro ? "#e2e8f0" : "#0f172a";
       ctx.font = "12px sans-serif";
       ctx.fillText(p.Ensayo || "—", x + 9, y - 9);
@@ -288,22 +342,29 @@
 
   el.selectDatum.addEventListener("change", renderizarMetricasYMapa);
   el.inputZona.addEventListener("change", renderizarMetricasYMapa);
+  el.capasControl.addEventListener("change", renderizarMetricasYMapa);
 
-  // ---- CSV ----------------------------------------------------------
-  function descargarCsv() {
-    const filas = [COLUMNAS.join(",")];
-    for (const reg of registros) {
-      filas.push(COLUMNAS.map((c) => `"${String(reg[c] || "").replace(/"/g, '""')}"`).join(","));
-    }
-    const blob = new Blob(["﻿" + filas.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+  // ---- XLSX ---------------------------------------------------------
+  function descargarXlsx() {
+    const ordenados = window.TopoParser.ordenarRegistros(registros);
+    const data = ordenados.map((r) => {
+      const obj = {};
+      for (const c of COLUMNAS) obj[c] = r[c] || "";
+      return obj;
+    });
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Coordenadas");
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "coordenadas.csv";
+    a.download = "coordenadas.xlsx";
     a.click();
     URL.revokeObjectURL(url);
   }
-  el.btnCsv.addEventListener("click", descargarCsv);
+  el.btnXlsx.addEventListener("click", descargarXlsx);
 
   // ---- Render general -------------------------------------------------
   function renderizarTodo() {

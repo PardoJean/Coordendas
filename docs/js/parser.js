@@ -8,6 +8,43 @@
   "use strict";
 
   const TIPOS = ["POZO", "VDC", "DCP", "TIS", "DCA"];
+  const TIPOS_ORDEN = { POZO: 1, VDC: 2, DCP: 3, TIS: 4, DCA: 5 };
+
+  const SIMBOLOGIA = {
+    POZO: { color: [220, 38, 38], radio: 8, marcador: "circle" },
+    VDC:  { color: [37, 99, 235], radio: 7, marcador: "triangle" },
+    DCP:  { color: [22, 163, 74], radio: 6, marcador: "square" },
+    TIS:  { color: [202, 138, 4], radio: 7, marcador: "diamond" },
+    DCA:  { color: [147, 51, 234], radio: 8, marcador: "cross" },
+  };
+  const SIMBOLOGIA_SIN = { color: [107, 114, 128], radio: 6, marcador: "hollow" };
+
+  function extraerTipoNumero(ensayo) {
+    if (!ensayo) return ["SIN CLASIFICAR", 0];
+    const m = ensayo.trim().match(/^([A-Za-z]+)\s*(\d*)/);
+    if (m) {
+      const tipo = m[1].toUpperCase();
+      const num = parseInt(m[2], 10) || 0;
+      return [tipo, num];
+    }
+    return ["SIN CLASIFICAR", 0];
+  }
+
+  function ordenarRegistros(registros) {
+    return [...registros].sort((a, b) => {
+      const [tipoA, numA] = extraerTipoNumero(a.Ensayo);
+      const [tipoB, numB] = extraerTipoNumero(b.Ensayo);
+      const priA = TIPOS_ORDEN[tipoA] !== undefined ? TIPOS_ORDEN[tipoA] : 99;
+      const priB = TIPOS_ORDEN[tipoB] !== undefined ? TIPOS_ORDEN[tipoB] : 99;
+      if (priA !== priB) return priA - priB;
+      return numA - numB;
+    });
+  }
+
+  function simbologiaPara(ensayo) {
+    const [tipo] = extraerTipoNumero(ensayo);
+    return SIMBOLOGIA[tipo] || SIMBOLOGIA_SIN;
+  }
 
   // Patrones tolerantes a errores típicos de OCR para cada tipo de ensayo.
   const PATRONES_TIPO = {
@@ -178,11 +215,17 @@
 
   global.TopoParser = {
     COLUMNAS,
+    TIPOS,
+    TIPOS_ORDEN,
+    SIMBOLOGIA,
     truncar2,
     numLimpio,
     procesarAbs,
     extraerEnsayo,
     extraerCoordenadas,
     parsear,
+    extraerTipoNumero,
+    ordenarRegistros,
+    simbologiaPara,
   };
 })(window);

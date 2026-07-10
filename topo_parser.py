@@ -16,6 +16,49 @@ import math
 
 TIPOS = ["POZO", "VDC", "DCP", "TIS", "DCA"]
 
+# Prioridad de ordenamiento de tipos de ensayo (menor = primero).
+TIPOS_ORDEN = {"POZO": 1, "VDC": 2, "DCP": 3, "TIS": 4, "DCA": 5}
+
+# Simbología por tipo: color RGB + radio en píxeles + marcador matplotlib.
+SIMBOLOGIA = {
+    "POZO": {"color": (220, 38, 38), "radio": 8, "marcador": "o"},
+    "VDC":  {"color": (37, 99, 235), "radio": 7, "marcador": "^"},
+    "DCP":  {"color": (22, 163, 74), "radio": 6, "marcador": "s"},
+    "TIS":  {"color": (202, 138, 4), "radio": 7, "marcador": "D"},
+    "DCA":  {"color": (147, 51, 234), "radio": 8, "marcador": "*"},
+}
+_SIMBOLOGIA_SIN = {"color": (107, 114, 128), "radio": 6, "marcador": "o"}
+
+
+def extraer_tipo_numero(ensayo):
+    """Separa 'POZO 1' → ('POZO', 1), 'SIN CLASIFICAR' → ('SIN', 0)."""
+    if not ensayo:
+        return "SIN CLASIFICAR", 0
+    m = re.match(r"([A-Za-z]+)\s*(\d*)", ensayo.strip())
+    if m:
+        tipo = m.group(1).upper()
+        try:
+            num = int(m.group(2)) if m.group(2) else 0
+        except ValueError:
+            num = 0
+        return tipo, num
+    return "SIN CLASIFICAR", 0
+
+
+def ordenar_registros(registros):
+    """Ordena por prioridad de tipo (POZO<VDC<DCP<TIS<DCA) y número ascendente."""
+    def _clave(r):
+        tipo, num = extraer_tipo_numero(r.get("Ensayo", ""))
+        pri = TIPOS_ORDEN.get(tipo, 99)
+        return (pri, num)
+    return sorted(registros, key=_clave)
+
+
+def simbologia_para(ensayo):
+    """Devuelve color, radio, marcador para el tipo de ensayo."""
+    tipo, _ = extraer_tipo_numero(ensayo)
+    return SIMBOLOGIA.get(tipo) or _SIMBOLOGIA_SIN
+
 # Patrones tolerantes a errores típicos de OCR para cada tipo de ensayo
 # (ej. "0" en vez de "O", o palabras que Tesseract confunde por completo).
 # Basado en los errores observados en la app de escritorio original.

@@ -77,6 +77,15 @@
           <input id="input-zona" type="number" min="1" max="60" value="17" />
         </label>
       </div>
+      <div id="capas-control" class="capas-control">
+        <span class="capas-etiqueta">Capas:</span>
+        <label><input type="checkbox" class="capa-toggle" data-tipo="POZO" checked /> POZO</label>
+        <label><input type="checkbox" class="capa-toggle" data-tipo="VDC" checked /> VDC</label>
+        <label><input type="checkbox" class="capa-toggle" data-tipo="DCP" checked /> DCP</label>
+        <label><input type="checkbox" class="capa-toggle" data-tipo="TIS" checked /> TIS</label>
+        <label><input type="checkbox" class="capa-toggle" data-tipo="DCA" checked /> DCA</label>
+        <label><input type="checkbox" class="capa-toggle" data-tipo="SIN CLASIFICAR" checked /> S/C</label>
+      </div>
 
       <div id="mapa" class="mapa-online"></div>
       <p class="ayuda">Si no hay internet, el mapa de calles no carga; abajo tienes una vista Este/Norte que funciona siempre.</p>
@@ -84,7 +93,7 @@
 
       <hr />
       <div class="fila-descargas">
-        <button id="btn-csv" class="boton boton-secundario">⬇️ Descargar CSV</button>
+        <button id="btn-xlsx" class="boton boton-secundario">⬇️ Descargar Excel</button>
         <button id="btn-limpiar" class="boton boton-peligro">🗑️ Limpiar todo</button>
       </div>
     </section>
@@ -98,6 +107,7 @@
 
   <script src="vendor/tesseract/tesseract.min.js"></script>
   <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="js/parser.js"></script>
   <script src="js/geo.js"></script>
   <script src="js/ocr.js"></script>
