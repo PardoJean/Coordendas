@@ -11,13 +11,13 @@
   const TIPOS_ORDEN = { POZO: 1, VDC: 2, DCP: 3, TIS: 4, DCA: 5 };
 
   const SIMBOLOGIA = {
-    POZO: { color: [220, 38, 38], radio: 8, marcador: "circle" },
-    VDC:  { color: [37, 99, 235], radio: 7, marcador: "triangle" },
-    DCP:  { color: [22, 163, 74], radio: 6, marcador: "square" },
-    TIS:  { color: [202, 138, 4], radio: 7, marcador: "diamond" },
-    DCA:  { color: [147, 51, 234], radio: 8, marcador: "cross" },
+    POZO: { color: [231, 76, 60], radio: 8, marcador: "circle" },
+    VDC:  { color: [22, 160, 133], radio: 7, marcador: "triangle" },
+    DCP:  { color: [46, 204, 113], radio: 6, marcador: "square" },
+    TIS:  { color: [155, 89, 182], radio: 7, marcador: "diamond" },
+    DCA:  { color: [230, 126, 34], radio: 8, marcador: "cross" },
   };
-  const SIMBOLOGIA_SIN = { color: [107, 114, 128], radio: 6, marcador: "hollow" };
+  const SIMBOLOGIA_SIN = { color: [149, 165, 166], radio: 6, marcador: "hollow" };
 
   function extraerTipoNumero(ensayo) {
     if (!ensayo) return ["SIN CLASIFICAR", 0];

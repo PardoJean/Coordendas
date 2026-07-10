@@ -122,6 +122,9 @@ class App(tk.Tk):
         self.estado = ttk.Label(self, text="Listo. Abre una o varias capturas para empezar.",
                                 anchor="w", padding=6)
         self.estado.pack(side="bottom", fill="x")
+        pie = ttk.Label(self, text="Versión 1.0 · © 2026 · Todos los derechos reservados",
+                        anchor="center", foreground="#888", padding=2)
+        pie.pack(side="bottom", fill="x")
 
     # -- Acciones ---------------------------------------------------------
     def abrir_imagenes(self):
@@ -181,7 +184,8 @@ class App(tk.Tk):
         def redibujar():
             ax.clear()
             tipos_activos = {t for t, v in vars_capas.items() if v.get()}
-            xs, ys = [], []
+            xs, ys, anotaciones = [], [], []
+            leyenda_patches = []
             for nombre, x, y in puntos:
                 tipo, _ = extraer_tipo_numero(nombre)
                 if tipo not in tipos_activos:
@@ -190,12 +194,26 @@ class App(tk.Tk):
                 color = f"#{simb['color'][0]:02x}{simb['color'][1]:02x}{simb['color'][2]:02x}"
                 ax.scatter([x], [y], c=color, s=80, zorder=3, edgecolors="white",
                           marker=simb["marcador"])
-                ax.annotate(nombre, (x, y), textcoords="offset points", xytext=(6, 6), fontsize=9)
+                anotaciones.append(ax.annotate(nombre, (x, y), textcoords="offset points", xytext=(6, 6), fontsize=9))
                 xs.append(x)
                 ys.append(y)
             if xs and ys:
                 ax.set_xlim(min(xs) - 5, max(xs) + 5)
                 ax.set_ylim(min(ys) - 5, max(ys) + 5)
+            # Repulsión de etiquetas con adjustText
+            try:
+                from adjustText import adjust_text
+                adjust_text(anotaciones, ax=ax, only_move={"points": "xy", "text": "xy"},
+                            arrowprops=dict(arrowstyle="-", color="gray", lw=0.4))
+            except ImportError:
+                pass
+            # Leyenda
+            from matplotlib.patches import Patch
+            for tipo in TIPOS + ["SIN CLASIFICAR"]:
+                simb = SIMBOLOGIA.get(tipo) or _SIMBOLOGIA_SIN
+                color = f"#{simb['color'][0]:02x}{simb['color'][1]:02x}{simb['color'][2]:02x}"
+                leyenda_patches.append(Patch(facecolor=color, label=tipo))
+            ax.legend(handles=leyenda_patches, loc="lower right", fontsize=8, framealpha=0.9)
             ax.set_xlabel("Este (X)")
             ax.set_ylabel("Norte (Y)")
             ax.set_title("Puntos topográficos")

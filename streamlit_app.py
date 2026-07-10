@@ -41,26 +41,27 @@ st.markdown(
       .block-container { padding-top: 2rem; max-width: 1200px; }
 
       /* Encabezado con degradado */
+      .block-container { padding-top: 2rem; max-width: 1200px; }
       .cabecera {
-        background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 45%, #0ea5e9 100%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 18px;
         padding: 1.6rem 1.9rem;
         color: #fff;
-        box-shadow: 0 10px 30px rgba(37, 99, 235, .25);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, .2);
         margin-bottom: 1.6rem;
       }
-      .cabecera h1 { margin: 0; font-size: 1.9rem; font-weight: 800; letter-spacing: -.5px; }
+      .cabecera h1 { margin: 0; font-size: 1.9rem; font-weight: 700; letter-spacing: -.5px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
       .cabecera p  { margin: .35rem 0 0; opacity: .92; font-size: 1rem; }
 
-      /* Tarjetas */
       .tarjeta {
-        background: var(--secondary-background-color, #f8fafc);
-        border: 1px solid rgba(2, 6, 23, .06);
-        border-radius: 14px;
+        background: #fff;
+        border: 1px solid rgba(2, 6, 23, .08);
+        border-radius: 18px;
         padding: 1.1rem 1.2rem 1.2rem;
         height: 100%;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
       }
-      .tarjeta h3 { margin: 0 0 .6rem; font-size: 1.05rem; font-weight: 700; }
+      .tarjeta h3 { margin: 0 0 .6rem; font-size: 1.05rem; font-weight: 700; color: #1a1a2e; }
 
       div[data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
       .stButton>button, .stDownloadButton>button {
@@ -71,7 +72,6 @@ st.markdown(
         border: 1px solid rgba(2, 6, 23, .06);
         border-radius: 12px; padding: .6rem .9rem;
       }
-      footer { visibility: hidden; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -296,17 +296,6 @@ else:
             pickable=True,
         ))
 
-    capas.append(pdk.Layer(
-        "TextLayer",
-        data=df_filtrado,
-        get_position=["lon", "lat"],
-        get_text="Ensayo",
-        get_size=14,
-        get_color=[17, 24, 39],
-        get_pixel_offset=[0, -16],
-        get_alignment_baseline="'bottom'",
-    ))
-
     if not df_filtrado.empty:
         vista = pdk.ViewState(
             latitude=float(df_filtrado["lat"].mean()),
@@ -326,6 +315,14 @@ else:
         ),
         use_container_width=True,
     )
+
+    simb = SIMBOLOGIA
+    items = ""
+    for t in TIPOS + ["SIN CLASIFICAR"]:
+        c = simb.get(t) or _SIMBOLOGIA_SIN
+        r, g, b = c["color"]
+        items += f'<span class="item"><span class="color" style="background:rgb({r},{g},{b})"></span>{t}</span>'
+    st.markdown(f'<div class="leyenda-mapa">{items}</div>', unsafe_allow_html=True)
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -352,4 +349,4 @@ with d2:
         st.rerun()
 
 st.divider()
-st.caption("Procesador Topográfico · [GitHub](https://github.com/PardoJean/Coordenadas)")
+st.caption("Versión 1.0 · © 2026 · Todos los derechos reservados · [GitHub](https://github.com/PardoJean/Coordenadas)")

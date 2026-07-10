@@ -36,6 +36,7 @@
   let archivosSeleccionados = [];
   let mapaLeaflet = null;
   let capaMarcadores = null;
+  let grupoCluster = null;
 
   // ---- Estado de conexión --------------------------------------------
   function actualizarEstadoConexion() {
@@ -243,12 +244,33 @@
       maxZoom: 19,
       attribution: "&copy; OpenStreetMap",
     }).addTo(mapaLeaflet);
+    grupoCluster = L.markerClusterGroup({
+      maxClusterRadius: 50,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true,
+    });
+    mapaLeaflet.addLayer(grupoCluster);
     capaMarcadores = L.layerGroup().addTo(mapaLeaflet);
+  }
+
+  function renderizarLeyenda(contenedorId) {
+    const contenedor = document.getElementById(contenedorId);
+    if (!contenedor) return;
+    const tipos = window.TopoParser.TIPOS.concat(["SIN CLASIFICAR"]);
+    const simb = window.TopoParser.SIMBOLOGIA;
+    const sc = window.TopoParser._SIMBOLOGIA_SIN;
+    contenedor.innerHTML = tipos.map(t => {
+      const s = simb[t] || sc;
+      return `<span class="item"><span class="color" style="background:rgb(${s.color.join(",")})"></span>${t}</span>`;
+    }).join("");
   }
 
   function dibujarMapaOnline(puntos) {
     inicializarMapa();
+    grupoCluster.clearLayers();
     capaMarcadores.clearLayers();
+    renderizarLeyenda("leyenda-mapa-online");
     if (!puntos.length) return;
     const bounds = [];
     for (const p of puntos) {
@@ -265,7 +287,7 @@
       }).bindTooltip(`<b>${p.Ensayo || "—"}</b><br>X: ${p.X}<br>Y: ${p.Y}<br>COTA: ${p.COTA}`, {
         permanent: false,
       });
-      marcador.addTo(capaMarcadores);
+      marcador.addTo(grupoCluster);
       bounds.push([p.lat, p.lon]);
     }
     if (bounds.length === 1) {
@@ -283,6 +305,7 @@
     const oscuro = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
     ctx.fillStyle = oscuro ? "#0f172a" : "#ffffff";
     ctx.fillRect(0, 0, w, h);
+    renderizarLeyenda("leyenda-mapa-offline");
 
     if (!puntos.length) {
       ctx.fillStyle = oscuro ? "#94a3b8" : "#64748b";
@@ -319,15 +342,36 @@
     ctx.fillText("Norte (Y) →", 0, 0);
     ctx.restore();
 
+    const ocupados = [];
+    function colisiona(x, y, ancho, alto) {
+      for (const r of ocupados) {
+        if (x < r.x + r.w && x + ancho > r.x && y < r.y + r.h && y + alto > r.y) return true;
+      }
+      return false;
+    }
+
     for (const p of puntos) {
       const x = px(parseFloat(p.X));
       const y = py(parseFloat(p.Y));
       const [tipo] = window.TopoParser.extraerTipoNumero(p.Ensayo);
       const simb = window.TopoParser.simbologiaPara(p.Ensayo);
       dibujarFormaCanvas(ctx, x, y, tipo, simb.color, oscuro);
-      ctx.fillStyle = oscuro ? "#e2e8f0" : "#0f172a";
+      const etiqueta = p.Ensayo || "—";
       ctx.font = "12px sans-serif";
-      ctx.fillText(p.Ensayo || "—", x + 9, y - 9);
+      const medida = ctx.measureText(etiqueta);
+      const ancho = medida.width + 4;
+      const alto = 16;
+      const offsets = [[9, -9], [9, 9], [-9 - ancho, -9], [-9 - ancho, 9], [9, -25], [-9 - ancho, -25]];
+      let dx = 9, dy = -9;
+      for (const [odx, ody] of offsets) {
+        if (!colisiona(x + odx, y + ody, ancho, alto)) {
+          dx = odx; dy = ody;
+          break;
+        }
+      }
+      ctx.fillStyle = oscuro ? "#e2e8f0" : "#0f172a";
+      ctx.fillText(etiqueta, x + dx, y + dy);
+      ocupados.push({ x: x + dx, y: y + dy, w: ancho, h: alto });
     }
   }
 

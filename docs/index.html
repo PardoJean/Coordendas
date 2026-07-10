@@ -10,7 +10,10 @@
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="vendor/leaflet/MarkerCluster.css" />
+  <link rel="stylesheet" href="vendor/leaflet/MarkerCluster.Default.css" />
   <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 </head>
 <body>
   <div class="cabecera">
@@ -88,8 +91,10 @@
       </div>
 
       <div id="mapa" class="mapa-online"></div>
+      <div id="leyenda-mapa-online" class="leyenda-mapa"></div>
       <p class="ayuda">Si no hay internet, el mapa de calles no carga; abajo tienes una vista Este/Norte que funciona siempre.</p>
       <canvas id="mapa-offline" width="760" height="480" class="mapa-offline"></canvas>
+      <div id="leyenda-mapa-offline" class="leyenda-mapa"></div>
 
       <hr />
       <div class="fila-descargas">
@@ -102,11 +107,13 @@
   </main>
 
   <footer>
-    <p>Procesador Topográfico · <a href="https://github.com/PardoJean/Coordenadas" target="_blank" rel="noopener">GitHub</a> · Funciona sin internet una vez cargado (PWA)</p>
+    <p>Versión 1.0 · © 2026 · Todos los derechos reservados</p>
+    <p><a href="https://github.com/PardoJean/Coordenadas" target="_blank" rel="noopener">GitHub</a></p>
   </footer>
 
   <script src="vendor/tesseract/tesseract.min.js"></script>
   <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/leaflet/leaflet.markercluster.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="js/parser.js"></script>
   <script src="js/geo.js"></script>
