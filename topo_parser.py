@@ -188,6 +188,29 @@ def parsear(tokens):
     }
 
 
+# Zona UTM por defecto (proyecto en Zamora Chinchipe, Ecuador -> zona 17 Sur).
+ZONA_UTM_DEFECTO = 17
+
+
+def utm_a_latlon(este, norte, zona=ZONA_UTM_DEFECTO, hemisferio_norte=False):
+    """Convierte una coordenada UTM (Este=X, Norte=Y) a (latitud, longitud) en
+    grados decimales, para poder ubicar el punto en un mapa. Devuelve
+    (None, None) si los valores no son numéricos o caen fuera de rango."""
+    try:
+        e = float(str(este).replace(" ", "").replace(",", "."))
+        n = float(str(norte).replace(" ", "").replace(",", "."))
+    except (ValueError, TypeError):
+        return None, None
+    if e == 0 or n == 0:
+        return None, None
+    try:
+        import utm
+        lat, lon = utm.to_latlon(e, n, zona, northern=hemisferio_norte)
+        return lat, lon
+    except Exception:  # noqa: BLE001  (coordenada inválida para la zona, etc.)
+        return None, None
+
+
 COLUMNAS = ["Ensayo", "X", "Y", "COTA", "ABS"]
 
 # Modos de segmentación de página (--psm) de Tesseract a probar, en orden.
