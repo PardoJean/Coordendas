@@ -115,6 +115,7 @@ def main():
         ("Código > P0Z0 1", "POZO 1"),       # 0 en vez de O
         ("Código > POZ0 1", "POZO 1"),
         ("Código: Voc 4", "VDC 4"),          # VDC mal leído
+        ("NTC 0.000 (LPH VCD3 Y", "VDC 3"),   # OCR transpuso C y D (VCD en vez de VDC)
         ("C6digo > POZO1", "POZO 1"),        # "Código" y número pegados sin espacio
         ("Codigo > DOP 3", "DCP 3"),         # DCP mal leído
         ("sin ningun codigo reconocible aqui", "SIN CLASIFICAR"),
@@ -202,6 +203,19 @@ def main():
     ok_e = got_e.get("ABS") == "40.88"
     todo_ok &= ok_e
     print(f"  [{ 'OK ' if ok_e else 'FALLA'}] E5T: K0+ 40.883: esperado='40.88' obtenido={got_e.get('ABS')!r}")
+
+    # Caso F: ABS con km>0 (K1+177.600 -> 1177.60)
+    got_f = extraer_coordenadas(["Dist:1249.300m Est:K1+177.600"])
+    ok_f = got_f.get("ABS") == "1177.60"
+    todo_ok &= ok_f
+    print(f"  [{ 'OK ' if ok_f else 'FALLA'}] K1+177.600: esperado='1177.60' obtenido={got_f.get('ABS')!r}")
+
+    # Caso G: ABS con km>0 sin regression (K0+381.265 -> 381.26)
+    got_g = extraer_coordenadas(["Dist:1303.502m Est:K0+381.265"])
+    ok_g = got_g.get("ABS") == "381.26"
+    todo_ok &= ok_g
+    print(f"  [{ 'OK ' if ok_g else 'FALLA'}] K0+381.265: esperado='381.26' obtenido={got_g.get('ABS')!r}")
+
     # Casos reportados: con el modo de OCR por defecto (--psm automático), el
     # campo "Código" se fusiona con elementos vecinos de la interfaz y
     # Tesseract lo lee como texto irreconocible ("PIE", "NULES"...), dando

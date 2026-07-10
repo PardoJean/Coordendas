@@ -41,6 +41,7 @@ const casosEnsayo = [
   ["Código > P0Z0 1", "POZO 1"],
   ["Código > POZ0 1", "POZO 1"],
   ["Código: Voc 4", "VDC 4"],
+  ["NTC 0.000 (LPH VCD3 Y", "VDC 3"], // OCR transpuso C y D (VCD en vez de VDC)
   ["C6digo > POZO1", "POZO 1"],
   ["Codigo > DOP 3", "DCP 3"],
   ["sin ningun codigo reconocible aqui", "SIN CLASIFICAR"],
@@ -72,6 +73,8 @@ check('Est/K separado', extraerCoordenadas(['algo', 'Est', 'K', '-0+', '218.161'
 check('E5t + numero directo', extraerCoordenadas(['E5t:', '-218.161']).ABS, '-218.16');
 check('Est:< -0+ 154.895', extraerCoordenadas(['Est:< -0+ 154.895']).ABS, '-154.89');
 check('E5T: K0+ 40.883', extraerCoordenadas(['E5T: K0+ 40.883']).ABS, '40.88');
+check('K1+177.600 (km>0)', extraerCoordenadas(['Dist:1249.300m Est:K1+177.600']).ABS, '1177.60');
+check('K0+381.265 (km=0 sin regresión)', extraerCoordenadas(['Dist:1303.502m Est:K0+381.265']).ABS, '381.26');
 
 console.log("\n== Conversión UTM -> lat/lon (PSAD56, zona 17 Sur) ==");
 const geoPsad = utmALatLon("780816.71", "9603295.21", { zona: 17, datum: "PSAD56" });

@@ -49,19 +49,21 @@
   // Patrones tolerantes a errores típicos de OCR para cada tipo de ensayo.
   const PATRONES_TIPO = {
     POZO: /P[O0][ZS2][O0]|FES[O0]?|PES[O0]?|POZ|POS\b/,
-    VDC: /VDC|V[O0]C[D0]?|VUC|VBC|UDC|FER|PYR[O0]|T[O0]E/,
+    VDC: /VDC|VCD|V[O0]C[D0]?|VUC|VBC|UDC|FER|PYR[O0]|T[O0]E/,
     DCP: /DCP|D[O0]P/,
     TIS: /TIS/,
     DCA: /DCA/,
   };
 
   function truncar2(valor) {
+    /* Trunca a 2 decimales sin redondear. Usa string para evitar errores
+       de precisión flotante (1177.600*100 → 117759.999 → Math.trunc → 1177.59). */
     if (valor === null || valor === undefined || valor === "") return "";
-    const limpio = String(valor).replace(/\s/g, "").replace(",", ".");
-    const v = parseFloat(limpio);
-    if (Number.isNaN(v)) return "";
-    const truncado = Math.trunc(v * 100) / 100;
-    return truncado.toFixed(2);
+    const s = String(valor).replace(/\s/g, "").replace(",", ".");
+    if (!/^-?\d+(\.\d+)?$/.test(s)) return "";
+    const dot = s.indexOf(".");
+    if (dot === -1) return s + ".00";
+    return s.slice(0, dot) + "." + (s.slice(dot + 1) + "00").slice(0, 2);
   }
 
   function numLimpio(texto) {
@@ -79,11 +81,17 @@
   function procesarAbs(crudo) {
     if (!crudo) return "";
     const s = String(crudo).toUpperCase();
-    const m = s.match(/([+-]?)\s*0\s*[+-]\s*(\d+(?:[.,]\d+)?)/);
+    const m = s.match(/([+-]?)\s*(\d+)\s*[+-]\s*(\d+(?:[.,]\d+)?)/);
     if (m) {
       const signo = m[1];
-      const numero = truncar2(m[2]);
-      return numero ? `${signo}${numero}` : "";
+      const km = m[2];
+      const mPart = m[3];
+      if (km === "0") {
+        const numero = truncar2(mPart);
+        return numero ? `${signo}${numero}` : "";
+      }
+      const totalStr = `${signo}${km}${mPart}`;
+      return truncar2(totalStr);
     }
     const n = numLimpio(s);
     return n ? truncar2(n) : "";
@@ -190,10 +198,10 @@
     const mc = up.match(/(?:ELEVACI[ÓO]N|ELEV|COTA)[^\d+-]{0,6}([+-]?\d+(?:[.,]\d+)?)/);
     if (mc) res.COTA = numLimpio(mc[1]);
 
-    // 1) "Est:" tolerante a OCR (E5t, Es7...) + K-0+NUMBER
-    let ma = up.match(/E[S5][T7I1L][\s:.]*[Kk]\s*([+-]?\s*0\s*[+-]\s*\d+(?:[.,]\d+)?)/);
-    // 2) Solo K-0+NUMBER (Est muy dañado)
-    if (!ma) ma = up.match(/[Kk<]\s*([+-]?\s*0\s*[+-]\s*\d+(?:[.,]\d+)?)/);
+    // 1) "Est:" tolerante a OCR (E5t, Es7...) + K<num>+<num>
+    let ma = up.match(/E[S5][T7I1L][\s:.]*[Kk]\s*([+-]?\s*\d+\s*[+-]\s*\d+(?:[.,]\d+)?)/);
+    // 2) Solo K<num>+<num> (Est muy dañado)
+    if (!ma) ma = up.match(/[Kk<]\s*([+-]?\s*\d+\s*[+-]\s*\d+(?:[.,]\d+)?)/);
     // 3) "Est:" dañado + número directo (OCR perdió "K-0+" pero dejó el valor)
     if (!ma) ma = up.match(/E[S5][T7I1L][\s:.]*[^K]{0,8}?([+-]?\d{1,4}(?:[.,]\d+)?)/);
     if (ma) res.ABS = procesarAbs(ma[1]);

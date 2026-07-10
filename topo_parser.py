@@ -64,7 +64,7 @@ def simbologia_para(ensayo):
 # Basado en los errores observados en la app de escritorio original.
 _PATRONES_TIPO = {
     "POZO": r"P[O0][ZS2][O0]|FES[O0]?|PES[O0]?|POZ|POS\b",
-    "VDC": r"VDC|V[O0]C[D0]?|VUC|VBC|UDC|FER|PYR[O0]|T[O0]E",
+    "VDC": r"VDC|VCD|V[O0]C[D0]?|VUC|VBC|UDC|FER|PYR[O0]|T[O0]E",
     "DCP": r"DCP|D[O0]P",
     "TIS": r"TIS",
     "DCA": r"DCA",
@@ -72,15 +72,21 @@ _PATRONES_TIPO = {
 
 
 def truncar_2(valor):
-    """Trunca a 2 decimales sin redondear. Devuelve '' si no es número."""
+    """Trunca a 2 decimales sin redondear. Devuelve '' si no es número.
+    Usa truncamiento por string para evitar errores de precisión flotante
+    (ej. 1177.600 * 100 = 117759.99999999999 → Math.trunc → 1177.59)."""
     if valor is None or valor == "":
         return ""
     try:
-        v = float(str(valor).replace(" ", "").replace(",", "."))
+        s = str(valor).replace(" ", "").replace(",", ".")
+        if not re.match(r"^-?\d+(\.\d+)?$", s):
+            return ""
+        dot = s.find(".")
+        if dot == -1:
+            return s + ".00"
+        return s[:dot] + "." + (s[dot + 1:] + "00")[:2]
     except (ValueError, TypeError):
         return ""
-    truncado = math.trunc(v * 100) / 100.0
-    return f"{truncado:.2f}"
 
 
 def _num_limpio(texto):
@@ -99,18 +105,24 @@ def _num_limpio(texto):
 
 def procesar_abs(crudo):
     """
-    'K-0+218.161' -> '-218.16'   (primer signo, se omite el 0 y el segundo signo)
-    'K0+154.895'  -> '154.89'
+    'K-0+218.161' -> '-218.16'   (km=0, signo -, metros=218.161)
+    'K0+154.895'  -> '154.89'    (km=0, sin signo, metros=154.895)
+    'K1+177.600'  -> '1177.60'   (km=1, metros=177.600 -> 1000+177.600)
     '-218.161'    -> '-218.16'   (número firmado directo, sin K-0+)
     """
     if not crudo:
         return ""
     s = str(crudo).upper()
-    m = re.search(r"([+-]?)\s*0\s*[+-]\s*(\d+(?:[.,]\d+)?)", s)
+    m = re.search(r"([+-]?)\s*(\d+)\s*[+-]\s*(\d+(?:[.,]\d+)?)", s)
     if m:
         signo = m.group(1)
-        numero = truncar_2(m.group(2))
-        return f"{signo}{numero}" if numero else ""
+        km = m.group(2)
+        m_part = m.group(3)
+        if km == "0":
+            numero = truncar_2(m_part)
+            return f"{signo}{numero}" if numero else ""
+        total_str = f"{signo}{km}{m_part}"
+        return truncar_2(total_str)
     n = _num_limpio(s)
     return truncar_2(n) if n else ""
 
@@ -237,11 +249,11 @@ def extraer_coordenadas(tokens):
         res["COTA"] = _num_limpio(mc.group(1))
 
     # ---- ABS (Est:K-0+valor) ----
-    # 1) "Est:" tolerante a errores OCR (E5t, E$t, Es7...) + K-0+NUMBER
-    ma = re.search(r"E[S5][T7I1L][\s:.]*[Kk]\s*([+-]?\s*0\s*[+-]\s*\d+(?:[.,]\d+)?)", up)
-    # 2) Solo K-0+NUMBER (Est muy dañado)
+    # 1) "Est:" tolerante a errores OCR (E5t, E$t, Es7...) + K<num>+<num>
+    ma = re.search(r"E[S5][T7I1L][\s:.]*[Kk]\s*([+-]?\s*\d+\s*[+-]\s*\d+(?:[.,]\d+)?)", up)
+    # 2) Solo K<num>+<num> (Est muy dañado)
     if not ma:
-        ma = re.search(r"[Kk<]\s*([+-]?\s*0\s*[+-]\s*\d+(?:[.,]\d+)?)", up)
+        ma = re.search(r"[Kk<]\s*([+-]?\s*\d+\s*[+-]\s*\d+(?:[.,]\d+)?)", up)
     # 3) "Est:" dañado + número directo (el OCR perdió "K-0+" pero dejó el valor)
     if not ma:
         ma = re.search(r"E[S5][T7I1L][\s:.]*[^K]{0,8}?([+-]?\d{1,4}(?:[.,]\d+)?)", up)
