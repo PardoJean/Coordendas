@@ -153,6 +153,12 @@ def main():
             ("WhatsApp Image 2026-07-10 at 5.01.00 PM - VDC 5.png",
              {"Ensayo": "VDC 5", "X": "781013.33", "Y": "9603298.24",
               "COTA": "838.95", "ABS": "40.88"}),
+            ("WhatsApp Image - VDC 4 (2).jpg",
+             {"Ensayo": "VDC 4", "X": "780816.71", "Y": "9603295.21",
+              "COTA": "825.38", "ABS": "-154.89"}),
+            ("WhatsApp Image - DCP 1 (2).jpg",
+             {"Ensayo": "DCP 1", "X": "780720.63", "Y": "9603591.64",
+              "COTA": "786.71", "ABS": "-218.16"}),
         ]
         for nombre_archivo, esperado in casos_imagen:
             reg, _texto = leer_imagen(Image.open(assets_dir / nombre_archivo))
