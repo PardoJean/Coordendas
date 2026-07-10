@@ -142,6 +142,21 @@ def extraer_coordenadas(tokens):
         entero = valor.split(".")[0].lstrip("+-")
         return len(entero) >= 5
 
+    def _buscar_valor_cercano(tokens, desde, ventana=1):
+        """Busca, en los siguientes `ventana` tokens, el primero que tenga
+        pinta de coordenada UTM real. Tolera que se haya colado un token de
+        ruido justo entre la etiqueta ('E'/'N') y su valor real, pero se
+        detiene apenas aparece OTRA etiqueta E/N: cruzarla significaría
+        robarle el valor al campo siguiente."""
+        for j in range(desde, min(desde + ventana, len(tokens))):
+            tu_j = tokens[j].upper().strip()
+            if tu_j in etiquetas_e or tu_j in etiquetas_n:
+                break
+            candidato = _num_limpio(tokens[j]) or ""
+            if _parece_coordenada_utm(candidato):
+                return candidato
+        return ""
+
     for i, tok in enumerate(tokens):
         tu = tok.upper().strip()
         # Etiqueta y número en el mismo token: "E 780720.633"
@@ -149,16 +164,16 @@ def extraer_coordenadas(tokens):
         if me and not res["X"]:
             res["X"] = _num_limpio(me.group(1))
         elif tu in etiquetas_e and not res["X"] and i + 1 < len(tokens):
-            candidato = _num_limpio(tokens[i + 1]) or ""
-            if _parece_coordenada_utm(candidato):
+            candidato = _buscar_valor_cercano(tokens, i + 1)
+            if candidato:
                 res["X"] = candidato
 
         mn = re.match(r"^N[\s:.\-]+([+-]?\d[\d.,\s]*)$", tu)
         if mn and not res["Y"]:
             res["Y"] = _num_limpio(mn.group(1))
         elif tu in etiquetas_n and not res["Y"] and i + 1 < len(tokens):
-            candidato = _num_limpio(tokens[i + 1]) or ""
-            if _parece_coordenada_utm(candidato):
+            candidato = _buscar_valor_cercano(tokens, i + 1)
+            if candidato:
                 res["Y"] = candidato
 
     # ---- Respaldo por magnitud (UTM: Norte = 7 dígitos con 9; Este = 6 dígitos) ----

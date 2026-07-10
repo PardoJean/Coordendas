@@ -1,0 +1,49 @@
+name: Pruebas (Python + navegador + fuzzing)
+
+# Corre automáticamente toda la batería de pruebas en cada push y pull
+# request: la lógica de extracción (Python y JS deben dar los mismos
+# resultados) y el fuzzer de robustez, que genera cientos de variaciones de
+# ruido de OCR sobre las capturas reales conocidas y falla si el parser
+# llega a insertar un valor incorrecto sin avisar (un campo vacío es
+# aceptable -se nota y se corrige a mano-, un dato equivocado no).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar Tesseract OCR (para el test de extremo a extremo)
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-spa
+
+      - name: Instalar dependencias de Python
+        run: pip install -r requirements.txt
+
+      - name: Pruebas del parser (Python)
+        run: python tests/test_topo_parser.py
+
+      - name: Pruebas del parser (navegador / JS)
+        run: node tests/test_parser_js.js
+
+      - name: Fuzzing de robustez (Python)
+        run: python tests/fuzz_parser.py --trials 1000
+
+      - name: Fuzzing de robustez (navegador / JS)
+        run: node tests/fuzz_parser_js.js 1000
